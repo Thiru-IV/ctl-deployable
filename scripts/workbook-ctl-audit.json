@@ -1,0 +1,247 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## CTL Agent — Verdict Evidence & Audit Trail\n\nEnd-to-end audit trail for every Clear-To-List evaluation. Pick a **Session** below to see the orchestrator phases, sub-agent reasoning, MCP tool calls, RAG citations, and the final verdict — with its evidence chain.\n\n*Source: `customEvents` (event = `CTL.AuditStep`) emitted by the CTL Agent Host into Application Insights `ctlagent-appinsights`.*"
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "p-timerange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": { "durationMs": 2592000000 },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 3600000 },
+                { "durationMs": 86400000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 2592000000 },
+                { "durationMs": 7776000000 }
+              ]
+            }
+          },
+          {
+            "id": "p-session",
+            "version": "KqlParameterItem/1.0",
+            "name": "SessionId",
+            "label": "Session",
+            "type": 2,
+            "isRequired": true,
+            "query": "customEvents\n| where name == 'CTL.AuditStep'\n| extend SessionId = tostring(customDimensions.SessionId), AssetId = tostring(customDimensions.AssetId)\n| summarize Started = min(timestamp), Steps = count(), AssetId = anyif(AssetId, AssetId != '—' and isnotempty(AssetId)) by SessionId\n| order by Started desc\n| project value = SessionId, label = strcat(SessionId, '   ·   ', coalesce(AssetId, '—'), '   ·   ', format_datetime(Started, 'yyyy-MM-dd HH:mm:ss'), ' UTC   ·   ', tostring(Steps), ' steps')",
+            "typeSettings": { "additionalResourceOptions": [], "showDefault": false },
+            "defaultValue": "value::1",
+            "timeContext": { "durationMs": 0 },
+            "timeContextFromParameter": "TimeRange",
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Verdict Summary"
+      },
+      "name": "summary-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where name == 'CTL.AuditStep'\n| where tostring(customDimensions.SessionId) == '{SessionId}'\n| extend Step = tostring(customDimensions.StepType), Description = tostring(customDimensions.Description), AssetId = tostring(customDimensions.AssetId), Agent = tostring(customDimensions.AgentName)\n| summarize\n    Asset = anyif(AssetId, AssetId != '—' and isnotempty(AssetId)),\n    Started = min(timestamp),\n    Completed = max(timestamp),\n    Steps = count(),\n    Verdict = anyif(Description, Step == 'EvaluationCompleted'),\n    HumanReview = countif(Step in ('HumanReviewRequested','HumanReviewSubmitted')) > 0,\n    SafetyDegraded = countif(Step in ('ContentSafetyDegraded','CircuitBreakerOpen')) > 0,\n    Failures = countif(Step == 'AgentExhaustedRetries')\n| extend DurationSec = datetime_diff('second', Completed, Started)\n| project Asset, Started, DurationSec, Steps, Verdict, HumanReview, SafetyDegraded, Failures",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Verdict",
+              "formatter": 1
+            },
+            {
+              "columnMatch": "HumanReview",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  { "operator": "==", "thresholdValue": "true", "representation": "warning", "text": "Yes" },
+                  { "operator": "Default", "representation": "success", "text": "No" }
+                ]
+              }
+            },
+            {
+              "columnMatch": "SafetyDegraded",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  { "operator": "==", "thresholdValue": "true", "representation": "failed", "text": "Yes" },
+                  { "operator": "Default", "representation": "success", "text": "No" }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "verdict-summary"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Phase Timeline\n\nDuration of each orchestrator phase (Planning → Investigation → Reflection → Quality Gate)."
+      },
+      "name": "timeline-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where name == 'CTL.AuditStep'\n| where tostring(customDimensions.SessionId) == '{SessionId}'\n| extend Agent = tostring(customDimensions.AgentName), Step = tostring(customDimensions.StepType)\n| where Agent startswith 'CTLOrchestrator-' or Agent startswith 'CTLWorkflowOrchestrator'\n| where Step in ('PhaseStarted','PhaseCompleted','EvaluationStarted','EvaluationCompleted','AssetProfileSupplied','VerdictParsed','QualityGateEvaluated','HumanReviewRequested','HumanReviewSubmitted')\n| project timestamp, Phase = replace_string(replace_string(Agent, 'CTLWorkflowOrchestrator-', ''), 'CTLOrchestrator-', ''), Step, Description = tostring(customDimensions.Description)\n| order by timestamp asc",
+        "size": 0,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 500,
+          "showExpandColumn": true,
+          "formatters": [
+            { "columnMatch": "timestamp", "formatter": 5 },
+            { "columnMatch": "Description", "formatter": 1 }
+          ],
+          "labelSettings": [
+            { "columnId": "Description", "label": "Description" }
+          ]
+        }
+      },
+      "name": "phase-timeline"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Audit Trail — every step\n\nClick the **Description** cell on any row to open a side panel with the full text and payload (no truncation).\n\n**Legend:** `[Orchestrator · Deterministic]` = workflow control · `[LLM ...]` = model reasoning · `[LLM Tool Call]` = MCP tool invocation · `[Guardrail · ...]` = safety filter · `[Human Review]` = manual reviewer."
+      },
+      "name": "trail-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where name == 'CTL.AuditStep'\n| where tostring(customDimensions.SessionId) == '{SessionId}'\n| extend Time  = format_datetime(timestamp, 'HH:mm:ss.fff'),\n         Agent = tostring(customDimensions.AgentName),\n         Step  = tostring(customDimensions.StepType),\n         Description = tostring(customDimensions.Description),\n         Payload     = tostring(customDimensions.OutputPayload),\n         Tokens      = todouble(customMeasurements.TokensUsed),\n         DurationMs  = todouble(customMeasurements.DurationMs)\n| project timestamp, Time, Agent, Step, Description, Tokens, DurationMs, Payload\n| order by timestamp asc",
+        "size": 0,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 1000,
+          "formatters": [
+            { "columnMatch": "timestamp", "formatter": 5 },
+            { "columnMatch": "Description", "formatter": 7, "formatOptions": { "linkTarget": "CellDetails", "linkIsContextBlade": true } },
+            { "columnMatch": "Payload", "formatter": 7, "formatOptions": { "linkTarget": "CellDetails", "linkLabel": "View payload" } }
+          ]
+        }
+      },
+      "name": "audit-trail"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Tool Calls & Investigation Coverage\n\nOne row per MCP tool invocation. Investigation agents that ran but chose to make **zero** tool calls (because the asset profile already provided the needed data) appear with `Kind = Agent (no tool calls)` so coverage is fully transparent."
+      },
+      "name": "tools-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let base = customEvents\n  | where name == 'CTL.AuditStep'\n  | where tostring(customDimensions.SessionId) == '{SessionId}';\nlet calls = base\n  | where tostring(customDimensions.StepType) == 'ToolCallExecuted'\n  | extend Time = format_datetime(timestamp, 'HH:mm:ss.fff'),\n           Agent = tostring(customDimensions.AgentName),\n           Description = tostring(customDimensions.Description),\n           Payload = tostring(customDimensions.OutputPayload),\n           Kind = 'Tool Call';\nlet ranAgents = base\n  | where tostring(customDimensions.StepType) == 'InvestigationFindings'\n  | extend Agent = tostring(customDimensions.AgentName)\n  | distinct Agent;\nlet calledAgents = base\n  | where tostring(customDimensions.StepType) == 'ToolCallExecuted'\n  | extend Agent = tostring(customDimensions.AgentName)\n  | distinct Agent;\nlet zeroCallAgents = ranAgents\n  | join kind=leftanti calledAgents on Agent;\nlet zeroCallRows = base\n  | where tostring(customDimensions.StepType) == 'InvestigationFindings'\n  | extend Agent = tostring(customDimensions.AgentName)\n  | join kind=inner zeroCallAgents on Agent\n  | extend Time = format_datetime(timestamp, 'HH:mm:ss.fff'),\n           Description = strcat('[Agent ran with 0 tool calls] ', tostring(customDimensions.Description)),\n           Payload = tostring(customDimensions.OutputPayload),\n           Kind = 'Agent (no tool calls)'\n  | project timestamp, Time, Agent, Kind, Description, Payload;\ncalls\n| project timestamp, Time, Agent, Kind, Description, Payload\n| union zeroCallRows\n| order by timestamp asc",
+        "size": 0,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 500,
+          "formatters": [
+            { "columnMatch": "Description", "formatter": 7, "formatOptions": { "linkTarget": "CellDetails", "linkIsContextBlade": true } },
+            { "columnMatch": "Payload", "formatter": 7, "formatOptions": { "linkTarget": "CellDetails", "linkLabel": "View tool I/O" } }
+          ]
+        }
+      },
+      "name": "tool-calls"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Guardrails — safety screening events\n\nContent Safety, Prompt Shields, PII filter, Token Budget. Each row proves a guardrail ran on every input/output."
+      },
+      "name": "guard-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where name == 'CTL.AuditStep'\n| where tostring(customDimensions.SessionId) == '{SessionId}'\n| where tostring(customDimensions.AgentName) startswith 'GuardrailsMiddleware'\n| extend Time = format_datetime(timestamp, 'HH:mm:ss.fff'),\n         Agent = tostring(customDimensions.AgentName),\n         Step  = tostring(customDimensions.StepType),\n         Description = tostring(customDimensions.Description)\n| project timestamp, Time, Agent, Step, Description\n| order by timestamp asc",
+        "size": 0,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 500,
+          "formatters": [
+            { "columnMatch": "Description", "formatter": 7, "formatOptions": { "linkTarget": "CellDetails", "linkIsContextBlade": true } }
+          ]
+        }
+      },
+      "name": "guardrails"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Recent sessions (cross-session view)"
+      },
+      "name": "recent-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\n| where name == 'CTL.AuditStep'\n| extend SessionId = tostring(customDimensions.SessionId),\n         AssetId   = tostring(customDimensions.AssetId),\n         Step      = tostring(customDimensions.StepType),\n         Description = tostring(customDimensions.Description)\n| summarize\n    Asset      = anyif(AssetId, AssetId != '—' and isnotempty(AssetId)),\n    Started    = min(timestamp),\n    Steps      = count(),\n    Verdict    = anyif(Description, Step == 'EvaluationCompleted'),\n    Failures   = countif(Step == 'AgentExhaustedRetries')\n  by SessionId\n| order by Started desc\n| take 50",
+        "size": 0,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "rowLimit": 50,
+          "formatters": [
+            {
+              "columnMatch": "Verdict",
+              "formatter": 1
+            }
+          ]
+        }
+      },
+      "name": "recent-sessions"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/26b9b517-1d62-442c-aa36-cc34ead07b0c/resourceGroups/CTL-Agent-RG/providers/microsoft.insights/components/ctlagent-appinsights"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
+

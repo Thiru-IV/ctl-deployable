@@ -1,0 +1,38 @@
+﻿{
+  "tables": [
+    {
+      "columns": [
+        {
+          "name": "SessionId",
+          "type": "string"
+        },
+        {
+          "name": "timestamp",
+          "type": "datetime"
+        },
+        {
+          "name": "Payload",
+          "type": "string"
+        }
+      ],
+      "name": "PrimaryResult",
+      "rows": [
+        [
+          "e4505a7aefa4",
+          "2026-04-30T21:05:22.9729324Z",
+          "The asset profile has already been retrieved and is provided in the [PersonType] message. I will [DateTime] analyze the profile and query the knowledge base for relevant policies to build the CTL verification plan.\n\n### Asset Profile\n```json\n{\n    \"assetId\": \"ASSET-NY-004\",\n    \"type\": \"REO\",\n    \"state\": \"NY\",\n    \"county\": \"Kings\",\n    \"sellerTier\": \"Tier 2\",\n    \"occupancy\": \"Vacant\",\n    \"[Person]\": \"*********\",\n    \"address\": \"[Address]\",\n    \"ingestionDate\": \"[DateTime]\"\n}\n```\n\n### Analysis\n1. **Asset Type**: REO (Real Estate Owned).\n2. **State**: New York (NY).\n3. **County**: Kings County.\n4. **Seller Tier**: Tier 2.\n5. **Occupancy**: Vacant.\n6. **Ingestion Date**: [DateTime] (within the last 7 days).\n\n### Pre-Verified Occupancy Exemption Check\n- The asset is vacant.\n- Seller tier is Tier 2.\n- Ingestion date is within the last 7 days.\n\nBased on the exemption rules, the \"Occupancy & Condition\" domain is pre-satisfied and will be omitted from the required domains.\n\n### Querying the Knowledge Base\nI will query the CTL policy knowledge base for:\n1. Legal & Title requirements for REO assets in New York, Kings County.\n2. Valuation requirements for REO assets in New York, Kings County.\n\nLet me proceed with the queries.\r\n### CTL Verification Plan for Asset ID: ASSET-NY-004\n\n```json\n{\n    \"assetId\": \"ASSET-NY-004\",\n    \"requiredDomains\": [\"Legal\", \"Valuation\"],\n    \"relevantPolicies\": [\n        \"REO Disposition and Marketing Standards ù CTL Policy\",\n        \"Title Clearance and Lien Resolution Requirements ù CTL Policy\"\n    ],\n    \"assetProfileSummary\": \"Asset is a vacant REO property located in Kings County, New York, ingested within the last 7 days, and managed under Tier 2 seller guidelines.\",\n    \"planRationale\": \"The asset is a vacant REO property, and the Pre-Verified Occupancy Exemption applies due to its Tier 2 status and recent ingestion date. Therefore, the 'Occupancy & Condition' domain is omitted. Legal & Title is required to ensure title clearance, lien resolution, and compliance with REO acquisition path verification. Valuation is required to confirm the BPO quality and pricing strategy per REO disposition standards. These domains are essential for CTL determination, while Occupancy is pre-satisfied and excluded.\"\n}\n```"
+        ],
+        [
+          "06cc506963d6",
+          "2026-04-30T21:03:57.7730089Z",
+          "The asset profile has already been retrieved and is provided in the [PersonType] message. I will [DateTime] analyze the profile and query the knowledge base for relevant policies to build the CTL verification plan.\n\n### Asset Profile\n```json\n{\n    \"assetId\": \"ASSET-NY-004\",\n    \"type\": \"REO\",\n    \"state\": \"NY\",\n    \"county\": \"Kings\",\n    \"sellerTier\": \"Tier 2\",\n    \"occupancy\": \"Vacant\",\n    \"[Person]\": \"*********\",\n    \"address\": \"[Address]\",\n    \"ingestionDate\": \"[DateTime]\"\n}\n```\n\n### Analysis\n1. **Asset Type**: REO (Real Estate Owned).\n2. **State**: New York (NY).\n3. **County**: Kings.\n4. **Seller Tier**: Tier 2.\n5. **Occupancy**: Vacant.\n6. **Ingestion Date**: [DateTime] (within the last 7 days).\n\n### Next Steps\nI will query the CTL policy knowledge base for:\n1. State-specific requirements for New York (NY).\n2. County-specific requirements for Kings County.\n3. Asset-type-specific requirements for REO properties.\n\nLet me proceed with querying the knowledge base.\r\nBased on the asset profile and the retrieved policies, here is the CTL verification plan for asset ID: ASSET-NY-004:\n\n### CTL Verification Plan\n```json\n{\n    \"assetId\": \"ASSET-NY-004\",\n    \"requiredDomains\": [\"Legal\", \"Valuation\"],\n    \"relevantPolicies\": [\n        \"CTL-POLICY-OCC-001#c5: Pre-Verified Occupancy Exemption\",\n        \"CTL-POLICY-001#c0: Clear-To-List Baseline Requirements\",\n        \"CTL-POLICY-REO-001#c1: REO Disposition and Marketing Standards\"\n    ],\n    \"assetProfileSummary\": \"Asset is a Tier 2 REO property located in Kings County, NY. It is vacant and was ingested into the system within the last 7 days. The address is [Address].\",\n    \"planRationale\": \"The asset is vacant, and the ingestion date is within the last 7 days, qualifying it for the Pre-Verified Occupancy Exemption under CTL policy CTL-POLICY-OCC-001#c5. As a Tier 2 seller, occupancy verification is pre-satisfied and omitted from the required domains. Legal and Valuation domains are mandatory for all assets to ensure title clearance and accurate pricing based on current valuation. REO-specific policies (CTL-POLICY-REO-001#c1) require compliance with disposition and marketing standards, which are addressed through the Legal and Valuation domains.\"\n}\n```"
+        ],
+        [
+          "6ef759866e30",
+          "2026-04-30T21:02:41.0959297Z",
+          "The asset profile has already been retrieved and is provided in the [PersonType] message. I will [DateTime] analyze the profile and query the knowledge base for relevant policies to build the CTL verification plan.\n\n### Asset Profile\n```json\n{\n    \"assetId\": \"ASSET-NY-004\",\n    \"type\": \"REO\",\n    \"state\": \"NY\",\n    \"county\": \"Kings\",\n    \"sellerTier\": \"Tier 2\",\n    \"occupancy\": \"Vacant\",\n    \"[Person]\": \"*********\",\n    \"address\": \"[Address]\",\n    \"ingestionDate\": \"[DateTime]\"\n}\n```\n\n### Analysis\n1. **Asset Type**: REO (Real Estate Owned).\n2. **State**: New York (NY).\n3. **County**: Kings County.\n4. **Seller Tier**: Tier 2.\n5. **Occupancy**: Vacant.\n6. **Ingestion Date**: [DateTime] (within the last 7 days).\n\n### Pre-Verified Occupancy Exemption Check\n- The asset is vacant.\n- Seller tier is Tier 2.\n- Ingestion date is within the last 7 days.\n\nBased on the exemption rules, the \"Occupancy & Condition\" domain is pre-satisfied and will be omitted from the required domains.\n\n### Querying Knowledge Base\nI will query the CTL policy knowledge base for:\n1. Legal & Title requirements for REO assets in New York, Kings County.\n2. Valuation requirements for REO assets in New York, Kings County.\n\nLet me proceed with the queries.\r\n### CTL Verification Plan for Asset ID: ASSET-NY-004\n\n```json\n{\n    \"assetId\": \"ASSET-NY-004\",\n    \"requiredDomains\": [\"Legal\", \"Valuation\"],\n    \"relevantPolicies\": [\n        \"REO Disposition and Marketing Standards ù CTL Policy\",\n        \"Title Clearance and Lien Resolution Requirements ù CTL Policy\"\n    ],\n    \"assetProfileSummary\": \"Asset is a vacant REO property located in Kings County, New York. Seller tier is Tier 2, and the asset was ingested within the last 7 days.\",\n    \"planRationale\": \"The asset is vacant, Tier 2, and ingested within the last 7 days, satisfying the Pre-Verified Occupancy Exemption. Therefore, the 'Occupancy & Condition' domain is omitted. Legal & Title is required to ensure title clearance, lien resolution, and compliance with REO disposition standards. Valuation is required to confirm the accuracy and staleness of the BPO or AVM, as per REO marketing standards.\"\n}\n```"
+        ]
+      ]
+    }
+  ]
+}

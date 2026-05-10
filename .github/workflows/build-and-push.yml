@@ -1,0 +1,121 @@
+name: build-and-push-acr
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: timestamp)'
+        required: false
+        default: ''
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'config/**'
+      - '.github/workflows/build-and-push.yml'
+
+concurrency:
+  group: acr-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ACR_NAME: ctlagentacr
+      ACR_LOGIN_SERVER: ctlagentacr.azurecr.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$(date -u +%Y%m%d%H%M)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Azure login (service principal)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR login
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push ctl-agent-api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Cascade.CTL.Agent.Api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-agent-api:${{ steps.tag.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-agent-api:latest
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-agent-api:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-agent-api:buildcache,mode=max
+
+      - name: Build & push ctl-mcpserver
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Cascade.CTL.Agent.McpServer/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-mcpserver:${{ steps.tag.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-mcpserver:latest
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-mcpserver:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-mcpserver:buildcache,mode=max
+
+      - name: Build & push ctl-assetservice
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Cascade.CTL.AssetService/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-assetservice:${{ steps.tag.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-assetservice:latest
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-assetservice:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-assetservice:buildcache,mode=max
+
+      - name: Build & push ctl-rag-indexer
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Cascade.CTL.RAG.Indexer/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-rag-indexer:${{ steps.tag.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/ctl-rag-indexer:latest
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-rag-indexer:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/ctl-rag-indexer:buildcache,mode=max
+
+      - name: Summary
+        run: |
+          echo "## Images pushed" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Tag: ${{ steps.tag.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Registry: ${{ env.ACR_LOGIN_SERVER }}" >> "$GITHUB_STEP_SUMMARY"
+          for img in ctl-agent-api ctl-mcpserver ctl-assetservice ctl-rag-indexer; do
+            echo " - $img:${{ steps.tag.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+            echo " - $img:latest" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Now run on your Windows box:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```powershell' >> "$GITHUB_STEP_SUMMARY"
+          echo "cd C:\\CTLDeploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "powershell -NoProfile -ExecutionPolicy Bypass -File .\\deploy\\Deploy-CTL-Containers.ps1 -SkipBuild -ImageTag ${{ steps.tag.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

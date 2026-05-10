@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Cascade.CTL.Agent.Domain\Cascade.CTL.Agent.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Cascade.CTL.Agent.Infrastructure\Cascade.CTL.Agent.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Cascade.CTL.Agent.Application\Cascade.CTL.Agent.Application.csproj" />
+    <ProjectReference Include="..\..\src\Cascade.CTL.Agent.Guardrails\Cascade.CTL.Agent.Guardrails.csproj" />
+    <ProjectReference Include="..\..\src\Cascade.CTL.Agent.Host\Cascade.CTL.Agent.Host.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation.Quality" />
+    <PackageReference Include="OpenAI" />
+    <PackageReference Include="Azure.Identity" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\config\appsettings.json" Link="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\config\appsettings.Development.json" Link="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\config\rag-knowledge\**\*" LinkBase="rag-knowledge" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

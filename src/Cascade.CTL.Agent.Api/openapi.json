@@ -1,0 +1,91 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cascade CTL Agent API",
+    "description": "Clear-To-List evaluation service. Submit an asset id and receive a verdict (Clear, ClearWithConditions, NotClear, NeedsHumanReview) along with evidence trail, conditions, reflection log, and audit session id. Internally orchestrates a Plan \u2192 Investigation (Legal/Valuation/Occupancy) \u2192 Reflection \u2192 Quality Gate pipeline backed by Azure OpenAI, MCP tools, RAG over policy knowledge, and content/PII guardrails.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "https://REPLACE_WITH_FQDN", "description": "Azure Container Apps" }
+  ],
+  "paths": {
+    "/evaluate": {
+      "post": {
+        "operationId": "evaluateAsset",
+        "summary": "Run a Clear-To-List evaluation for an asset",
+        "description": "Synchronously runs the full multi-agent CTL pipeline for the supplied asset id and returns the final verdict. Typical latency: 15\u201340 seconds. Each call emits CTL.AuditStep customEvents to Application Insights.",
+        "security": [ { "ApiKeyAuth": [] } ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/EvaluateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Evaluation completed.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EvaluateResponse" }
+              }
+            }
+          },
+          "400": { "description": "Invalid request (missing assetId)." },
+          "401": { "description": "Missing or invalid X-Api-Key header." },
+          "500": { "description": "Pipeline failure. See returned detail and App Insights for the failed session id." }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Liveness/readiness probe",
+        "responses": { "200": { "description": "Service is up." } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key"
+      }
+    },
+    "schemas": {
+      "EvaluateRequest": {
+        "type": "object",
+        "required": [ "assetId" ],
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "description": "Asset identifier to evaluate (e.g. ASSET-NY-004, ASSET-TX-001).",
+            "example": "ASSET-NY-004"
+          },
+          "requestedBy": {
+            "type": "string",
+            "description": "Caller identifier for audit. Defaults to 'Cascade.CTL.Agent.Api'.",
+            "nullable": true
+          }
+        }
+      },
+      "EvaluateResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId":        { "type": "string", "description": "Audit session id; query App Insights customEvents where customDimensions.SessionId == this." },
+          "assetId":          { "type": "string" },
+          "verdict":          { "type": "string", "enum": [ "Clear", "ClearWithConditions", "NotClear", "NeedsHumanReview" ] },
+          "confidence":       { "type": "number", "format": "double", "minimum": 0, "maximum": 1 },
+          "conditions":       { "type": "array", "items": { "type": "string" } },
+          "evidenceTrail":    { "type": "array", "items": { "type": "string" } },
+          "reflectionLog":    { "type": "string" },
+          "durationSeconds":  { "type": "number", "format": "double" },
+          "tokensUsed":       { "type": "integer", "format": "int64" },
+          "isDegradedSafety": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

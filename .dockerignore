@@ -1,0 +1,20 @@
+# Reduce build context and avoid copying host-side build outputs into Docker.
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.git/
+**/audit-logs/
+**/measurement-runs/
+**/node_modules/
+**/*.user
+**/*.suo
+.dockerignore
+docker-compose.yml
+README.md
+docs/
+scripts/
+tests/
+deploy/
+claude-opus-chat-session.json
+**/*.log

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <InternalsVisibleTo Include="Cascade.CTL.Agent.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cascade.CTL.Agent.Domain\Cascade.CTL.Agent.Domain.csproj" />
+    <ProjectReference Include="..\Cascade.CTL.Agent.Infrastructure\Cascade.CTL.Agent.Infrastructure.csproj" />
+    <ProjectReference Include="..\Cascade.CTL.Agent.Guardrails\Cascade.CTL.Agent.Guardrails.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation" />
+    <PackageReference Include="Microsoft.Extensions.AI.Evaluation.Quality" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.Resilience" />
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Agents.AI.Workflows" />
+    <PackageReference Include="OpenAI" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+</Project>

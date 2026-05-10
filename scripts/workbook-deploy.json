@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workbookDisplayName": {
+      "type": "string",
+      "defaultValue": "CTL Agent — Verdict Evidence & Audit Trail"
+    },
+    "workbookId": {
+      "type": "string",
+      "defaultValue": "[guid(resourceGroup().id, 'ctl-audit-workbook')]"
+    },
+    "appInsightsId": {
+      "type": "string"
+    },
+    "workbookContent": {
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "type": "microsoft.insights/workbooks",
+      "apiVersion": "2022-04-01",
+      "name": "[parameters('workbookId')]",
+      "location": "[resourceGroup().location]",
+      "kind": "shared",
+      "properties": {
+        "displayName": "[parameters('workbookDisplayName')]",
+        "category": "workbook",
+        "serializedData": "[parameters('workbookContent')]",
+        "version": "1.0",
+        "sourceId": "[parameters('appInsightsId')]"
+      }
+    }
+  ],
+  "outputs": {
+    "workbookResourceId": {
+      "type": "string",
+      "value": "[resourceId('microsoft.insights/workbooks', parameters('workbookId'))]"
+    }
+  }
+}

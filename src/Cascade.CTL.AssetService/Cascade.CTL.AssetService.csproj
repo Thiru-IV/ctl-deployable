@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <UserSecretsId>cascade-ctl-assetservice</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cascade.CTL.Agent.Domain\Cascade.CTL.Agent.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Cascade.CTL.Agent.Tests" />
+  </ItemGroup>
+</Project>
