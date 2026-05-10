@@ -28,9 +28,12 @@ function Invoke-Az {
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $output = & az @args 2>&1
+        # --only-show-errors suppresses extension/preview warnings on stdout
+        # that would otherwise contaminate captured values like FQDNs.
+        $output = & az @args --only-show-errors 2>&1
         if ($LASTEXITCODE -ne 0) { throw "az $($args -join ' ') failed: $output" }
-        return $output
+        # Filter out any residual WARNING lines (some commands ignore the flag).
+        return ($output | Where-Object { $_ -notmatch '^\s*WARNING:' })
     }
     finally { $ErrorActionPreference = $prev }
 }
@@ -111,22 +114,21 @@ if (-not $SkipBuild) {
 $acrUser = (Invoke-Az acr credential show -n $AcrName --query username -o tsv)
 $acrPwd  = (Invoke-Az acr credential show -n $AcrName --query 'passwords[0].value' -o tsv)
 
-# --- Find Log Analytics workspace behind App Insights -----------------------
-Write-Step "Locating Log Analytics workspace behind App Insights"
-$instKey = ($secrets['appinsights-conn'] -split ';' | Where-Object { $_ -like 'InstrumentationKey=*' } | ForEach-Object { ($_ -split '=',2)[1] })
-$aiList = Invoke-Az resource list --resource-type 'microsoft.insights/components' -o json | ConvertFrom-Json
-$aiResource = $null
-foreach ($r in $aiList) {
-    $detail = Invoke-Az resource show --ids $r.id -o json | ConvertFrom-Json
-    if ($detail.properties.InstrumentationKey -eq $instKey) { $aiResource = $detail; break }
+# --- Dedicated Log Analytics workspace for the Container Apps env -----------
+# (App Insights still receives telemetry via the connection string env var
+#  injected into each container; the ACA env needs its own LAW because the
+#  App Insights workspace lives in a managed RG with a deny assignment.)
+$lawName = 'ctl-agent-law'
+Write-Step "Log Analytics workspace: $lawName"
+$prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+& cmd /c "az monitor log-analytics workspace show -g $ResourceGroup -n $lawName -o json > nul 2>&1"
+$ErrorActionPreference = $prevEAP
+if ($LASTEXITCODE -ne 0) {
+    Invoke-Az monitor log-analytics workspace create -g $ResourceGroup -n $lawName --location $Location | Out-Null
 }
-if (-not $aiResource) { throw "Could not find App Insights with InstrumentationKey $instKey." }
-$workspaceId = $aiResource.properties.WorkspaceResourceId
-if (-not $workspaceId) { throw "App Insights '$($aiResource.name)' has no linked Log Analytics workspace." }
-$lawCustomerId = (Invoke-Az monitor log-analytics workspace show --ids $workspaceId --query customerId -o tsv)
-$lawSharedKey  = (Invoke-Az monitor log-analytics workspace get-shared-keys --ids $workspaceId --query primarySharedKey -o tsv)
-Write-Host "  App Insights:  $($aiResource.name)"
-Write-Host "  Log Analytics: $workspaceId"
+$lawCustomerId = (Invoke-Az monitor log-analytics workspace show -g $ResourceGroup -n $lawName --query customerId -o tsv)
+$lawSharedKey  = (Invoke-Az monitor log-analytics workspace get-shared-keys -g $ResourceGroup -n $lawName --query primarySharedKey -o tsv)
+Write-Host "  Customer ID: $lawCustomerId"
 
 # --- Container Apps Environment ---------------------------------------------
 Write-Step "Container Apps Environment: $EnvName"

@@ -27,6 +27,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
+# Writable directory for AuditFileStore (CWD/audit-logs).
+RUN mkdir -p /app/audit-logs && chmod 777 /app/audit-logs
+
 USER $APP_UID
 
 ENV ASPNETCORE_URLS=http://+:8080 \
