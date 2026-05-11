@@ -65,6 +65,11 @@
     <!-- ASP.NET Core (for MCP Server) -->
     <PackageVersion Include="Microsoft.AspNetCore.App" Version="8.0.0" />
 
+    <!-- Teams / Bot Framework (HITL notifications) -->
+    <PackageVersion Include="Microsoft.Bot.Builder" Version="4.22.7" />
+    <PackageVersion Include="Microsoft.Bot.Builder.Integration.AspNet.Core" Version="4.22.7" />
+    <PackageVersion Include="AdaptiveCards" Version="3.1.0" />
+
     <!-- Serialization -->
     <PackageVersion Include="System.Text.Json" Version="9.0.3" />
 

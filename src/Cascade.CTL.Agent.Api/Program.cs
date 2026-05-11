@@ -29,8 +29,10 @@ app.Use(async (ctx, next) =>
 {
     var path = ctx.Request.Path.Value ?? string.Empty;
     // Health + OpenAPI spec are unauthenticated so probes / Foundry ingestion work.
+    // /api/messages uses Bot Framework JWT (channel-issued) — its own auth.
     if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
         path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith("/api/messages", StringComparison.OrdinalIgnoreCase) ||
         path == "/")
     {
         await next();
@@ -158,6 +160,13 @@ app.MapPost("/evaluate", async (
 
 // Drain App Insights buffer on graceful shutdown.
 app.Lifetime.ApplicationStopping.Register(() => FlushTelemetry(app.Services));
+
+// Map Bot Framework messaging endpoint (/api/messages) when Teams HITL is enabled.
+if (app.Configuration.GetValue("CTLAgent:Teams:Enabled", false))
+{
+    app.MapControllers();
+    logger.LogInformation("Teams HITL notifications enabled. Bot endpoint: POST /api/messages");
+}
 
 app.Run();
 

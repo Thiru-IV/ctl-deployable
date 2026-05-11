@@ -1,0 +1,158 @@
+name: deploy-to-aca
+
+# Updates the running Container Apps to a previously-pushed image tag and,
+# optionally, flips on the Teams HITL binding (Adaptive Card buttons drive
+# Confirm / Override / Re-evaluate, blocking the workflow until the reviewer
+# clicks or the configured timeout fires).
+#
+# Required GitHub secrets:
+#   AZURE_CREDENTIALS   - service principal JSON (already used by build workflow)
+#   TEAMS_APP_PASSWORD  - Azure Bot Microsoft App secret (only needed when enableTeams=true)
+#
+# Required GitHub variables (Settings → Secrets and variables → Actions → Variables):
+#   (optional) ACR_NAME, RESOURCE_GROUP — override the defaults below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      imageTag:
+        description: 'Image tag to deploy (e.g. 202605102156-abc1234, or "latest")'
+        required: true
+        default: 'latest'
+      enableTeams:
+        description: 'Enable Teams HITL binding on ctl-agent-api'
+        required: true
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      teamsAppId:
+        description: 'Bot Framework Microsoft App ID (Entra app client id)'
+        required: false
+        default: ''
+      teamsAppType:
+        description: 'MultiTenant | SingleTenant | UserAssignedMSI'
+        required: false
+        default: 'MultiTenant'
+      teamsAppTenantId:
+        description: 'Bot tenant id (only for SingleTenant / UserAssignedMSI)'
+        required: false
+        default: ''
+      teamsReviewerUpn:
+        description: 'Default reviewer UPN (e.g. AdeleV@yourtenant.onmicrosoft.com)'
+        required: false
+        default: ''
+      cascadeReviewUrl:
+        description: 'Deep-link template for the Open-in-Cascade button. Use {0}=assetId, {1}=sessionId.'
+        required: false
+        default: 'https://cascade.example.com/reviews/{0}?session={1}'
+      teamsTimeoutSec:
+        description: 'Seconds to wait for the reviewer click before fallback'
+        required: false
+        default: '300'
+
+concurrency:
+  group: aca-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ACR_NAME: ctlagentacr
+      ACR_LOGIN_SERVER: ctlagentacr.azurecr.io
+      RESOURCE_GROUP: ctl-agent-rg
+      IMAGE_TAG: ${{ inputs.imageTag }}
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Update ctl-assetservice image
+        run: |
+          az containerapp update \
+            --name ctl-assetservice \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/ctl-assetservice:$IMAGE_TAG" \
+            --only-show-errors > /dev/null
+
+      - name: Update ctl-mcpserver image
+        run: |
+          az containerapp update \
+            --name ctl-mcpserver \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/ctl-mcpserver:$IMAGE_TAG" \
+            --only-show-errors > /dev/null
+
+      - name: Update ctl-rag-indexer job image
+        run: |
+          az containerapp job update \
+            --name ctl-rag-indexer \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/ctl-rag-indexer:$IMAGE_TAG" \
+            --only-show-errors > /dev/null
+
+      - name: Configure Teams HITL on ctl-agent-api (if enabled)
+        if: ${{ inputs.enableTeams == 'true' }}
+        env:
+          TEAMS_APP_PASSWORD: ${{ secrets.TEAMS_APP_PASSWORD }}
+        run: |
+          if [[ -z "${{ inputs.teamsAppId }}" ]]; then
+            echo "::error::enableTeams=true but teamsAppId input is empty."
+            exit 1
+          fi
+          if [[ -z "$TEAMS_APP_PASSWORD" ]]; then
+            echo "::error::TEAMS_APP_PASSWORD secret is not set. Add it in Settings → Secrets → Actions."
+            exit 1
+          fi
+
+          # Upsert the bot secret on the container app.
+          az containerapp secret set \
+            --name ctl-agent-api \
+            --resource-group "$RESOURCE_GROUP" \
+            --secrets "teams-app-password=$TEAMS_APP_PASSWORD" \
+            --only-show-errors > /dev/null
+
+          # Force MaxReplicas=1 so the in-memory pending-review registry isn't split across replicas.
+          az containerapp update \
+            --name ctl-agent-api \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/ctl-agent-api:$IMAGE_TAG" \
+            --min-replicas 1 --max-replicas 1 \
+            --set-env-vars \
+              "CTLAgent__Teams__Enabled=true" \
+              "CTLAgent__Teams__MicrosoftAppType=${{ inputs.teamsAppType }}" \
+              "CTLAgent__Teams__MicrosoftAppId=${{ inputs.teamsAppId }}" \
+              "CTLAgent__Teams__MicrosoftAppPassword=secretref:teams-app-password" \
+              "CTLAgent__Teams__MicrosoftAppTenantId=${{ inputs.teamsAppTenantId }}" \
+              "CTLAgent__Teams__DefaultReviewerUpn=${{ inputs.teamsReviewerUpn }}" \
+              "CTLAgent__Teams__CascadeReviewUrlTemplate=${{ inputs.cascadeReviewUrl }}" \
+              "CTLAgent__Teams__ResponseTimeoutSeconds=${{ inputs.teamsTimeoutSec }}" \
+            --only-show-errors > /dev/null
+
+      - name: Update ctl-agent-api image (Teams disabled path)
+        if: ${{ inputs.enableTeams != 'true' }}
+        run: |
+          az containerapp update \
+            --name ctl-agent-api \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/ctl-agent-api:$IMAGE_TAG" \
+            --set-env-vars "CTLAgent__Teams__Enabled=false" \
+            --only-show-errors > /dev/null
+
+      - name: Print public endpoint
+        run: |
+          FQDN=$(az containerapp show \
+            -n ctl-agent-api -g "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          BOT_ENDPOINT="https://$FQDN/api/messages"
+          echo "## Deployment complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**API base:** \`https://$FQDN\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Evaluate:** \`POST https://$FQDN/evaluate\` (X-Api-Key required)" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Bot endpoint (set this in Azure Bot → Configuration):** \`$BOT_ENDPOINT\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image tag deployed:** \`$IMAGE_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Teams binding:** \`${{ inputs.enableTeams }}\`" >> "$GITHUB_STEP_SUMMARY"

@@ -10,7 +10,20 @@ param(
     [string] $AcrName       = 'ctlagentacr',
     [string] $EnvName       = 'ctl-agent-env',
     [string] $ImageTag      = (Get-Date -Format 'yyyyMMddHHmm'),
-    [switch] $SkipBuild
+    [switch] $SkipBuild,
+
+    # ── Teams HITL (optional) ────────────────────────────────────────────
+    # Pass these to enable interactive Adaptive Card decision binding for
+    # NeedsHumanReview verdicts. The MicrosoftAppId/Password come from your
+    # Azure Bot resource (Entra app registration).
+    [switch] $EnableTeams,
+    [string] $TeamsAppId         = '',
+    [string] $TeamsAppPassword   = '',
+    [string] $TeamsAppTenantId   = '',
+    [string] $TeamsAppType       = 'MultiTenant',
+    [string] $TeamsReviewerUpn   = '',
+    [string] $CascadeReviewUrl   = 'https://cascade.example.com/reviews/{0}?session={1}',
+    [int]    $TeamsTimeoutSec    = 300
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,13 +112,19 @@ if (-not $SkipBuild) {
     foreach ($img in $images) {
         Write-Host ""
         Write-Host "  Building $($img.name):$ImageTag" -ForegroundColor Yellow
-        Invoke-Az acr build `
-            --registry $AcrName `
-            --resource-group $ResourceGroup `
-            --image "$($img.name):$ImageTag" `
-            --image "$($img.name):latest" `
-            --file $img.dockerfile `
-            $repoRoot | Out-Null
+        Push-Location $repoRoot
+        try {
+            # Use '.' as source context — paths containing parentheses (e.g.
+            # C:\Users\localuser(1980)\...) confuse the az.cmd shim's arg parser.
+            Invoke-Az acr build `
+                --registry $AcrName `
+                --resource-group $ResourceGroup `
+                --image "$($img.name):$ImageTag" `
+                --image "$($img.name):latest" `
+                --file $img.dockerfile `
+                . | Out-Null
+        }
+        finally { Pop-Location }
     }
 } else {
     Write-Host "  (Skipping image build - using tag '$ImageTag')"
@@ -257,22 +276,44 @@ $apiEnv = [ordered]@{
     'CTLAgent__RAG__AzureSearch__AzureOpenAIApiKey' = 'secretref:search-aoai-key'
     'ApplicationInsights__ConnectionString'         = 'secretref:appinsights-conn'
 }
+
+$apiSecrets = @{
+    'agent-api-key'    = $secrets['agent-api-key']
+    'aoai-key'         = $secrets['aoai-key']
+    'judge-key'        = $secrets['judge-key']
+    'mcp-key'          = $secrets['mcp-key']
+    'assetservice-key' = $secrets['assetservice-key']
+    'search-admin-key' = $secrets['search-admin-key']
+    'search-aoai-key'  = $secrets['search-aoai-key']
+    'appinsights-conn' = $secrets['appinsights-conn']
+}
+
+# ── Optional: Teams HITL (interactive Adaptive Card binding) ─────────────
+if ($EnableTeams) {
+    if ([string]::IsNullOrWhiteSpace($TeamsAppId) -or [string]::IsNullOrWhiteSpace($TeamsAppPassword)) {
+        throw "EnableTeams requires -TeamsAppId and -TeamsAppPassword."
+    }
+    Write-Host "  Teams HITL: enabled (reviewer UPN: $TeamsReviewerUpn)" -ForegroundColor Cyan
+    $apiSecrets['teams-app-password'] = $TeamsAppPassword
+    $apiEnv['CTLAgent__Teams__Enabled']                  = 'true'
+    $apiEnv['CTLAgent__Teams__MicrosoftAppType']         = $TeamsAppType
+    $apiEnv['CTLAgent__Teams__MicrosoftAppId']           = $TeamsAppId
+    $apiEnv['CTLAgent__Teams__MicrosoftAppPassword']     = 'secretref:teams-app-password'
+    $apiEnv['CTLAgent__Teams__MicrosoftAppTenantId']     = $TeamsAppTenantId
+    $apiEnv['CTLAgent__Teams__DefaultReviewerUpn']       = $TeamsReviewerUpn
+    $apiEnv['CTLAgent__Teams__CascadeReviewUrlTemplate'] = $CascadeReviewUrl
+    $apiEnv['CTLAgent__Teams__ResponseTimeoutSeconds']   = "$TeamsTimeoutSec"
+}
+
 Set-OrCreateContainerApp `
     -Name 'ctl-agent-api' `
     -Image "$acrLoginServer/ctl-agent-api:$ImageTag" `
     -Ingress 'external' `
-    -AppSecrets @{
-        'agent-api-key'    = $secrets['agent-api-key']
-        'aoai-key'         = $secrets['aoai-key']
-        'judge-key'        = $secrets['judge-key']
-        'mcp-key'          = $secrets['mcp-key']
-        'assetservice-key' = $secrets['assetservice-key']
-        'search-admin-key' = $secrets['search-admin-key']
-        'search-aoai-key'  = $secrets['search-aoai-key']
-        'appinsights-conn' = $secrets['appinsights-conn']
-    } `
+    -AppSecrets $apiSecrets `
     -EnvVars $apiEnv `
-    -Cpu '1.0' -Memory '2.0Gi' -MinReplicas 1 -MaxReplicas 3
+    -Cpu '1.0' -Memory '2.0Gi' `
+    -MinReplicas 1 `
+    -MaxReplicas $(if ($EnableTeams) { 1 } else { 3 })
 $apiFqdn = (Invoke-Az containerapp show -n ctl-agent-api -g $ResourceGroup --query properties.configuration.ingress.fqdn -o tsv)
 
 # --- ctl-rag-indexer (job) --------------------------------------------------

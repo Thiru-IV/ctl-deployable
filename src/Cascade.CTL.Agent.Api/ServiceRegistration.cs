@@ -59,8 +59,52 @@ public static class ServiceRegistration
         var ragPath = Path.Combine(AppContext.BaseDirectory, "rag-knowledge");
         services.AddCTLInfrastructure(useMockProviders: useMock, configuration: config, ragKnowledgePath: ragPath);
 
-        // ── Service-mode HITL: no console; returns NeedsHumanReview to caller ─
-        services.AddSingleton<IHumanReviewService, AutoApproveHumanReviewService>();
+        // ── HITL: AutoApprove with optional Teams binding ────────────────────
+        // When Enabled=true, TeamsHumanReviewService sends an interactive Adaptive
+        // Card and BLOCKS the workflow until the reviewer clicks a button (or the
+        // configured timeout fires, in which case AutoApprove is used as fallback).
+        // Standalone POC mode — production should keep regulated decisions in Cascade 2.0.
+        services.Configure<Teams.TeamsHitlOptions>(config.GetSection(Teams.TeamsHitlOptions.SectionName));
+        services.AddSingleton<AutoApproveHumanReviewService>();
+        services.AddSingleton<Teams.IConversationReferenceStore, Teams.InMemoryConversationReferenceStore>();
+        services.AddSingleton<Teams.IPendingReviewRegistry, Teams.InMemoryPendingReviewRegistry>();
+
+        var teamsEnabled = config.GetValue($"{Teams.TeamsHitlOptions.SectionName}:Enabled", false);
+        if (teamsEnabled)
+        {
+            // Bridge nested CTLAgent:Teams:* config to the flat keys
+            // ConfigurationBotFrameworkAuthentication expects.
+            var botAuthConfig = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["MicrosoftAppType"]     = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppType"] ?? "MultiTenant",
+                    ["MicrosoftAppId"]       = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppId"],
+                    ["MicrosoftAppPassword"] = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppPassword"],
+                    ["MicrosoftAppTenantId"] = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppTenantId"],
+                })
+                .Build();
+
+            services.AddSingleton<Microsoft.Bot.Connector.Authentication.BotFrameworkAuthentication>(_ =>
+                new Microsoft.Bot.Builder.Integration.AspNet.Core.ConfigurationBotFrameworkAuthentication(botAuthConfig));
+            services.AddSingleton<Microsoft.Bot.Builder.Integration.AspNet.Core.IBotFrameworkHttpAdapter,
+                                  Microsoft.Bot.Builder.Integration.AspNet.Core.CloudAdapter>();
+            services.AddSingleton<Microsoft.Bot.Builder.IBot, Teams.HitlNotifierBot>();
+            services.AddControllers();
+
+            services.AddSingleton<IHumanReviewService>(sp =>
+                new Teams.TeamsHumanReviewService(
+                    fallback: sp.GetRequiredService<AutoApproveHumanReviewService>(),
+                    adapter: sp.GetRequiredService<Microsoft.Bot.Builder.Integration.AspNet.Core.IBotFrameworkHttpAdapter>(),
+                    store: sp.GetRequiredService<Teams.IConversationReferenceStore>(),
+                    registry: sp.GetRequiredService<Teams.IPendingReviewRegistry>(),
+                    options: sp.GetRequiredService<IOptions<Teams.TeamsHitlOptions>>(),
+                    logger: sp.GetRequiredService<ILogger<Teams.TeamsHumanReviewService>>()));
+        }
+        else
+        {
+            services.AddSingleton<IHumanReviewService>(sp =>
+                sp.GetRequiredService<AutoApproveHumanReviewService>());
+        }
 
         // ── Guardrails ───────────────────────────────────────────────────────
         services.AddCTLGuardrails();
