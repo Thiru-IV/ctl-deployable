@@ -94,7 +94,11 @@ public sealed class HitlNotifierBot : ActivityHandler
         try
         {
             payload = JsonSerializer.Deserialize<SubmitPayload>(json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+                });
         }
         catch (Exception ex)
         {
