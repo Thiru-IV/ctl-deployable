@@ -77,7 +77,19 @@ public sealed class HitlNotifierBot : ActivityHandler
 
     private async Task HandleSubmitAsync(ITurnContext<IMessageActivity> turnContext, CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(turnContext.Activity.Value);
+        // Bot Builder deserializes Activity.Value with Newtonsoft, so it normally arrives as
+        // a Newtonsoft.Json.Linq.JObject. System.Text.Json.JsonSerializer.Serialize(JObject)
+        // would serialize the JObject's CLR properties (HasValues, Type, ...) instead of the
+        // underlying JSON, so call ToString() on JToken to get the real payload JSON.
+        var raw = turnContext.Activity.Value;
+        string json = raw switch
+        {
+            null => "{}",
+            string s => s,
+            Newtonsoft.Json.Linq.JToken jt => jt.ToString(Newtonsoft.Json.Formatting.None),
+            _ => JsonSerializer.Serialize(raw)
+        };
+
         SubmitPayload? payload;
         try
         {
