@@ -86,8 +86,10 @@ public static class ServiceRegistration
 
             services.AddSingleton<Microsoft.Bot.Connector.Authentication.BotFrameworkAuthentication>(_ =>
                 new Microsoft.Bot.Builder.Integration.AspNet.Core.ConfigurationBotFrameworkAuthentication(botAuthConfig));
-            services.AddSingleton<Microsoft.Bot.Builder.Integration.AspNet.Core.IBotFrameworkHttpAdapter,
-                                  Microsoft.Bot.Builder.Integration.AspNet.Core.CloudAdapter>();
+            services.AddSingleton<Microsoft.Bot.Builder.Integration.AspNet.Core.IBotFrameworkHttpAdapter>(sp =>
+                new Microsoft.Bot.Builder.Integration.AspNet.Core.CloudAdapter(
+                    sp.GetRequiredService<Microsoft.Bot.Connector.Authentication.BotFrameworkAuthentication>(),
+                    sp.GetRequiredService<ILogger<Microsoft.Bot.Builder.Integration.AspNet.Core.CloudAdapter>>()));
             services.AddSingleton<Microsoft.Bot.Builder.IBot, Teams.HitlNotifierBot>();
             services.AddControllers();
 
