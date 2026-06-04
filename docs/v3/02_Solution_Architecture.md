@@ -45,11 +45,12 @@
 ║                                                                                    ║
 ║  ┌──────────────────────────────────────────────────────────────────────────────┐  ║
 ║  │                                    RAG                                       │  ║
-║  │  ┌────────────┐   ┌────────────┐   ┌────────────┐   ┌────────────────────┐   │  ║
-║  │  │   Policy   │   │  Indexing  │   │  Hybrid    │   │     Embedding      │   │  ║
-║  │  │  Knowledge │   │  Pipeline  │   │ Retriever  │   │     Generator      │   │  ║
-║  │  │    Base    │   │ (chunker)  │   │ (BM25+vec) │   │                    │   │  ║
-║  │  └────────────┘   └────────────┘   └────────────┘   └────────────────────┘   │  ║
+║  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │  ║
+║  │  │  Policy  │  │ Indexing │  │  Hybrid  │  │ Semantic │  │   Embedding    │  │  ║
+║  │  │Knowledge │  │ Pipeline │  │Retriever │  │ Reranker │  │   Generator    │  │  ║
+║  │  │   Base   │  │(chunker) │  │(BM25+vec)│  │  (L2 X-  │  │                │  │  ║
+║  │  │          │  │          │  │  + RRF)  │  │ encoder) │  │                │  │  ║
+║  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └────────────────┘  │  ║
 ║  └──────────────────────────────────────────────────────────────────────────────┘  ║
 ║                                                                                    ║
 ║  ┌──────────────────────────────────────────────────────────────────────────────┐  ║
@@ -80,7 +81,7 @@ Two AI deployments are used: a **Worker** model that plans, investigates, and re
 | **Quality Gate**          | LLM-as-Judge \u2014 an *independent* model (separate deployment, no tools) checks whether Reflection's verdict actually matches the specialists' findings, on a 1\u20135 groundedness scale. Below threshold \u2192 escalated to `NeedsHumanReview`. Catches hallucinated citations, ignored findings, and confidence/evidence mismatches. *Example:* verdict cites "BPO dated 2026-02" but no BPO appears in findings \u2192 score 2/5 \u2192 verdict blocked. |
 | **Human In The Loop**     | Routes flagged verdicts to an analyst with the full evidence package; override is captured  |
 | **MCP Tool Server**       | Single, governed entrypoint for every external lookup (title, HOA, code, BPO, AVM, occupancy, asset profile, knowledge-base query) |
-| **RAG Layer**             | Policy Knowledge Base · Indexing Pipeline (chunker) · Hybrid Retriever (BM25 + vector) · Embedding Generator |
+| **RAG Layer**             | Policy Knowledge Base · Indexing Pipeline (chunker) · Hybrid Retriever (BM25 + vector ANN, RRF-fused) · **L2 Semantic Reranker** (Azure AI Search cross-encoder re-orders the top hybrid candidates) · Embedding Generator |
 | **Guardrails Middleware** | Token budget, prompt-injection screening, PII masking on input *and* output                 |
 | **Resilience Pipelines**  | Typed retries, exponential backoff, per-phase timeouts, circuit-breakers on Azure deps      |
 | **Audit Sink**            | Every step / tool call / safety check captured as a structured event; one decision = one replayable record |
@@ -97,13 +98,24 @@ Two AI deployments are used: a **Worker** model that plans, investigates, and re
 | AI abstraction         | **Microsoft.Extensions.AI** (`IChatClient`, `AIAgent`) — provider-portable |
 | LLM provider           | **Azure AI Foundry** (worker + separate judge deployment)               |
 | Tools transport        | **Model Context Protocol (MCP)** over HTTP, API-key authenticated       |
-| Retrieval              | **Azure AI Search** — hybrid BM25 + vector (text-embedding-3-small)     |
+| Retrieval              | **Azure AI Search** — hybrid BM25 + vector (text-embedding-3-small) with **L2 semantic reranker** (Microsoft cross-encoder) |
 | Safety                 | **Azure AI Content Safety** + Prompt Shields, **Azure Text Analytics PII** |
 | Resilience             | **Polly v8** pipelines (retry, timeout, circuit-breaker)                |
 | Observability          | **OpenTelemetry** → **Application Insights**, plus per-session JSONL    |
 | Evaluation             | **Microsoft.Extensions.AI.Evaluation** (Groundedness, Relevance)        |
 | Identity (optional)    | **DefaultAzureCredential** / Managed Identity                           |
 | Tests                  | xUnit + NSubstitute                                                     |
+
+---
+
+### 3.1 Retrieval Pipeline (Two-Stage)
+
+The RAG layer uses a two-stage retrieval pattern to balance recall and precision:
+
+1. **L1 — Hybrid Retrieval (recall).** Every query is embedded once (`text-embedding-3-small`, 1536-dim) and submitted to Azure AI Search as a hybrid query: BM25 over `title` / `content` combined with HNSW vector ANN over `contentVector`. Metadata pre-filters (`state`, `county`, `assetType` with `ALL` tolerance) are applied server-side. Hybrid candidates are fused with Reciprocal Rank Fusion (default Azure behaviour).
+2. **L2 — Semantic Reranker (precision).** The top hybrid candidates (default 25, Azure caps at 50) are re-ordered by Azure AI Search's **semantic ranker** — a Microsoft-hosted cross-encoder that scores `(query, passage)` pairs directly. The reranker score (0.0–4.0) is normalised to 0.0–1.0 and used as `RAGDocument.RelevanceScore` for downstream consumers.
+
+Why this matters here: the Verdict Quality Gate scores groundedness against the retrieved passages. Hybrid alone is strong at recall but its score is a rank-aggregation signal — it does not compare passage *meaning* to the query. The L2 reranker does, lifting the precision of the top 3–5 passages that both the Reflection Agent and the Judge model see. The feature is opt-in via `CTLAgent:RAG:AzureSearch:SemanticRankerEnabled` (default `true`) and gracefully falls back to L1-only when disabled or when the index has no semantic configuration.
 
 ---
 
