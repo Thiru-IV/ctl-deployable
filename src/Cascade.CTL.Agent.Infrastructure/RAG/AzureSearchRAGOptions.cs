@@ -40,4 +40,24 @@ public sealed class AzureSearchRAGOptions
 
     /// <summary>Optional API key for Azure OpenAI (leave empty to use <c>DefaultAzureCredential</c>).</summary>
     public string? AzureOpenAIApiKey { get; set; }
+
+    /// <summary>
+    /// When true, queries enable Azure AI Search <em>semantic ranker</em> (L2 cross-encoder rerank) on top
+    /// of the hybrid (BM25 + vector) result set. Requires the index to declare a semantic configuration
+    /// (see <see cref="SemanticConfigurationName"/>) and the search service to be on a tier that supports
+    /// semantic ranking (Basic and above; free tier excluded).
+    /// </summary>
+    public bool SemanticRankerEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Semantic configuration name attached to the index. The configuration declares which fields the
+    /// reranker should treat as title vs. content. Default keeps configuration co-located with the index.
+    /// </summary>
+    public string SemanticConfigurationName { get; set; } = "ctl-semantic-config";
+
+    /// <summary>
+    /// Number of candidates passed from L1 hybrid retrieval into the L2 semantic reranker. Larger values
+    /// give the reranker more candidates to re-order at the cost of latency. Azure caps this at 50.
+    /// </summary>
+    public int RerankCandidateCount { get; set; } = 25;
 }

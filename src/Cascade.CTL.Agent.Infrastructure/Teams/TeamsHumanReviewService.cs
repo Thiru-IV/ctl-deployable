@@ -7,7 +7,7 @@ using Microsoft.Bot.Schema;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Cascade.CTL.Agent.Api.Teams;
+namespace Cascade.CTL.Agent.Infrastructure.Teams;
 
 /// <summary>
 /// Teams-bound HITL implementation. Sends an interactive Adaptive Card to the

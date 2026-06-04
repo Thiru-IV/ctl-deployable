@@ -9,6 +9,7 @@ using Cascade.CTL.Agent.Domain.Contracts;
 using Cascade.CTL.Agent.Domain.Models;
 using Cascade.CTL.Agent.Guardrails;
 using Cascade.CTL.Agent.Infrastructure;
+using Cascade.CTL.Agent.Infrastructure.Teams;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,12 +65,12 @@ public static class ServiceRegistration
         // Card and BLOCKS the workflow until the reviewer clicks a button (or the
         // configured timeout fires, in which case AutoApprove is used as fallback).
         // Standalone POC mode — production should keep regulated decisions in Cascade 2.0.
-        services.Configure<Teams.TeamsHitlOptions>(config.GetSection(Teams.TeamsHitlOptions.SectionName));
+        services.Configure<TeamsHitlOptions>(config.GetSection(TeamsHitlOptions.SectionName));
         services.AddSingleton<AutoApproveHumanReviewService>();
-        services.AddSingleton<Teams.IConversationReferenceStore, Teams.InMemoryConversationReferenceStore>();
-        services.AddSingleton<Teams.IPendingReviewRegistry, Teams.InMemoryPendingReviewRegistry>();
+        services.AddSingleton<IConversationReferenceStore, InMemoryConversationReferenceStore>();
+        services.AddSingleton<IPendingReviewRegistry, InMemoryPendingReviewRegistry>();
 
-        var teamsEnabled = config.GetValue($"{Teams.TeamsHitlOptions.SectionName}:Enabled", false);
+        var teamsEnabled = config.GetValue($"{TeamsHitlOptions.SectionName}:Enabled", false);
         if (teamsEnabled)
         {
             // Bridge nested CTLAgent:Teams:* config to the flat keys
@@ -77,10 +78,10 @@ public static class ServiceRegistration
             var botAuthConfig = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["MicrosoftAppType"]     = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppType"] ?? "MultiTenant",
-                    ["MicrosoftAppId"]       = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppId"],
-                    ["MicrosoftAppPassword"] = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppPassword"],
-                    ["MicrosoftAppTenantId"] = config[$"{Teams.TeamsHitlOptions.SectionName}:MicrosoftAppTenantId"],
+                    ["MicrosoftAppType"]     = config[$"{TeamsHitlOptions.SectionName}:MicrosoftAppType"] ?? "MultiTenant",
+                    ["MicrosoftAppId"]       = config[$"{TeamsHitlOptions.SectionName}:MicrosoftAppId"],
+                    ["MicrosoftAppPassword"] = config[$"{TeamsHitlOptions.SectionName}:MicrosoftAppPassword"],
+                    ["MicrosoftAppTenantId"] = config[$"{TeamsHitlOptions.SectionName}:MicrosoftAppTenantId"],
                 })
                 .Build();
 
@@ -90,17 +91,17 @@ public static class ServiceRegistration
                 new Microsoft.Bot.Builder.Integration.AspNet.Core.CloudAdapter(
                     sp.GetRequiredService<Microsoft.Bot.Connector.Authentication.BotFrameworkAuthentication>(),
                     sp.GetRequiredService<ILogger<Microsoft.Bot.Builder.Integration.AspNet.Core.CloudAdapter>>()));
-            services.AddSingleton<Microsoft.Bot.Builder.IBot, Teams.HitlNotifierBot>();
+            services.AddSingleton<Microsoft.Bot.Builder.IBot, HitlNotifierBot>();
             services.AddControllers();
 
             services.AddSingleton<IHumanReviewService>(sp =>
-                new Teams.TeamsHumanReviewService(
+                new TeamsHumanReviewService(
                     fallback: sp.GetRequiredService<AutoApproveHumanReviewService>(),
                     adapter: sp.GetRequiredService<Microsoft.Bot.Builder.Integration.AspNet.Core.IBotFrameworkHttpAdapter>(),
-                    store: sp.GetRequiredService<Teams.IConversationReferenceStore>(),
-                    registry: sp.GetRequiredService<Teams.IPendingReviewRegistry>(),
-                    options: sp.GetRequiredService<IOptions<Teams.TeamsHitlOptions>>(),
-                    logger: sp.GetRequiredService<ILogger<Teams.TeamsHumanReviewService>>()));
+                    store: sp.GetRequiredService<IConversationReferenceStore>(),
+                    registry: sp.GetRequiredService<IPendingReviewRegistry>(),
+                    options: sp.GetRequiredService<IOptions<TeamsHitlOptions>>(),
+                    logger: sp.GetRequiredService<ILogger<TeamsHumanReviewService>>()));
         }
         else
         {

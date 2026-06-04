@@ -13,9 +13,17 @@ public class AzureSearchRAGServiceTests
     private static AzureSearchRAGService BuildService(
         IAzureSearchExecutor executor,
         IRAGEmbeddingGenerator embeddings,
-        int topK = 5)
+        int topK = 5,
+        bool semanticRankerEnabled = false,
+        string semanticConfig = "ctl-semantic-config")
     {
-        var options = Options.Create(new AzureSearchRAGOptions { TopK = topK, IndexName = "idx" });
+        var options = Options.Create(new AzureSearchRAGOptions
+        {
+            TopK = topK,
+            IndexName = "idx",
+            SemanticRankerEnabled = semanticRankerEnabled,
+            SemanticConfigurationName = semanticConfig,
+        });
         return new AzureSearchRAGService(executor, embeddings, options, NullLogger<AzureSearchRAGService>.Instance);
     }
 
@@ -61,7 +69,7 @@ public class AzureSearchRAGServiceTests
         var executor = Substitute.For<IAzureSearchExecutor>();
         executor.HybridSearchAsync(
                 Arg.Any<string>(), Arg.Any<ReadOnlyMemory<float>>(), Arg.Any<string?>(),
-                Arg.Any<int>(), Arg.Any<CancellationToken>())
+                Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<PolicySearchHit>());
 
         var service = BuildService(executor, embeddings, topK: 7);
@@ -74,6 +82,7 @@ public class AzureSearchRAGServiceTests
             Arg.Is<ReadOnlyMemory<float>>(v => v.Length == 3),
             Arg.Is<string>(f => f != null && f.Contains("state eq 'TX'") && f.Contains("assetType eq 'REO'")),
             7,
+            Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -87,7 +96,7 @@ public class AzureSearchRAGServiceTests
         var executor = Substitute.For<IAzureSearchExecutor>();
         executor.HybridSearchAsync(
                 Arg.Any<string>(), Arg.Any<ReadOnlyMemory<float>>(), Arg.Any<string?>(),
-                Arg.Any<int>(), Arg.Any<CancellationToken>())
+                Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new PolicySearchHit[]
             {
                 new(0.85, "DOC-1", 2, "Title One", "Body One", "TX", "Dallas", "Foreclosure", "CTL-State"),
@@ -124,7 +133,7 @@ public class AzureSearchRAGServiceTests
         var executor = Substitute.For<IAzureSearchExecutor>();
         executor.HybridSearchAsync(
                 Arg.Any<string>(), Arg.Any<ReadOnlyMemory<float>>(), Arg.Any<string?>(),
-                Arg.Any<int>(), Arg.Any<CancellationToken>())
+                Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new PolicySearchHit[]
             {
                 new(5.4, "A", 0, "t", "c", null, null, null, null),  // BM25 can exceed 1
@@ -136,5 +145,98 @@ public class AzureSearchRAGServiceTests
 
         result.Documents[0].RelevanceScore.Should().Be(1.0);
         result.Documents[1].RelevanceScore.Should().Be(0.0);
+    }
+
+    [Fact]
+    public async Task QueryAsync_WhenSemanticRankerEnabled_PassesConfigurationToExecutor()
+    {
+        var embeddings = Substitute.For<IRAGEmbeddingGenerator>();
+        embeddings.EmbedAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ReadOnlyMemory<float>(new[] { 0.1f }));
+
+        var executor = Substitute.For<IAzureSearchExecutor>();
+        executor.HybridSearchAsync(
+                Arg.Any<string>(), Arg.Any<ReadOnlyMemory<float>>(), Arg.Any<string?>(),
+                Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<PolicySearchHit>());
+
+        var service = BuildService(executor, embeddings, semanticRankerEnabled: true, semanticConfig: "my-config");
+
+        await service.QueryAsync("q");
+
+        await executor.Received(1).HybridSearchAsync(
+            "q",
+            Arg.Any<ReadOnlyMemory<float>>(),
+            Arg.Any<string?>(),
+            Arg.Any<int>(),
+            "my-config",
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task QueryAsync_WhenSemanticRankerDisabled_PassesNullConfigurationToExecutor()
+    {
+        var embeddings = Substitute.For<IRAGEmbeddingGenerator>();
+        embeddings.EmbedAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new ReadOnlyMemory<float>(new[] { 0.1f }));
+
+        var executor = Substitute.For<IAzureSearchExecutor>();
+        executor.HybridSearchAsync(
+                Arg.Any<string>(), Arg.Any<ReadOnlyMemory<float>>(), Arg.Any<string?>(),
+                Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<PolicySearchHit>());
+
+        var service = BuildService(executor, embeddings, semanticRankerEnabled: false);
+
+        await service.QueryAsync("q");
+
+        await executor.Received(1).HybridSearchAsync(
+            "q",
+            Arg.Any<ReadOnlyMemory<float>>(),
+            Arg.Any<string?>(),
+            Arg.Any<int>(),
+            Arg.Is<string?>(s => s == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ToRagDocument_WhenRerankerScorePresent_UsesNormalisedRerankerScore()
+    {
+        // Azure semantic reranker scores are 0.0–4.0; expect normalisation to 0.0–1.0.
+        var hit = new PolicySearchHit(
+            Score: 0.10,                  // weak L1 hybrid score
+            ParentId: "DOC-1", ChunkIndex: 0, Title: "t", Content: "c",
+            State: null, County: null, AssetType: null, PolicyType: null,
+            RerankerScore: 3.6);          // strong L2 reranker score
+
+        var doc = AzureSearchRAGService.ToRagDocument(hit);
+
+        doc.RelevanceScore.Should().BeApproximately(0.9, 0.001);
+    }
+
+    [Fact]
+    public void ToRagDocument_WhenRerankerScoreAbsent_FallsBackToHybridScore()
+    {
+        var hit = new PolicySearchHit(
+            Score: 0.42,
+            ParentId: "DOC-1", ChunkIndex: 0, Title: "t", Content: "c",
+            State: null, County: null, AssetType: null, PolicyType: null,
+            RerankerScore: null);
+
+        var doc = AzureSearchRAGService.ToRagDocument(hit);
+
+        doc.RelevanceScore.Should().BeApproximately(0.42, 0.001);
+    }
+
+    [Fact]
+    public void ToRagDocument_ClampsRerankerScoreOutsideExpectedRange()
+    {
+        var aboveMax = new PolicySearchHit(
+            0.0, "A", 0, "t", "c", null, null, null, null, RerankerScore: 5.0);
+        var belowMin = new PolicySearchHit(
+            0.0, "B", 0, "t", "c", null, null, null, null, RerankerScore: -1.0);
+
+        AzureSearchRAGService.ToRagDocument(aboveMax).RelevanceScore.Should().Be(1.0);
+        AzureSearchRAGService.ToRagDocument(belowMin).RelevanceScore.Should().Be(0.0);
     }
 }

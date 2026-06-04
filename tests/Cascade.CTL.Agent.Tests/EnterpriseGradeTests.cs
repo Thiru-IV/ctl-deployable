@@ -744,7 +744,8 @@ public class AssetProfileScreeningTests
         var orchestrator = new CTLWorkflowOrchestrator(
             chatClient, toolProvider, auditService, assetProvider, humanReviewService,
             contentSafetyGuard, tokenBudgetGuard, requestValidator,
-            groundednessEvaluator, agentOptions, Options.Create(new VerdictPolicyOptions()), resilienceOptions, logger);
+            groundednessEvaluator, agentOptions, Options.Create(new VerdictPolicyOptions()), resilienceOptions,
+            Options.Create(new ReflectionDeterminismOptions()), logger);
 
         // Act & Assert: should throw because the asset profile contains injection
         Func<Task> act = () => orchestrator.EvaluateAsync(new CTLEvaluationRequest { AssetId = "ASSET-TX-001" });

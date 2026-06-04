@@ -42,6 +42,11 @@ internal sealed class PolicyKnowledgeIndexDocument
 /// Thin result DTO returned by <see cref="IAzureSearchExecutor"/> — decouples <see cref="AzureSearchRAGService"/> from Azure SDK types
 /// so the service can be unit-tested with a substituted executor.
 /// </summary>
+/// <param name="Score">L1 hybrid score (RRF-fused BM25 + vector). Always populated.</param>
+/// <param name="RerankerScore">
+/// L2 semantic reranker score (Azure AI Search cross-encoder, raw range ~0.0–4.0). Populated only
+/// when the executor was invoked with semantic reranking enabled; <c>null</c> otherwise.
+/// </param>
 public sealed record PolicySearchHit(
     double Score,
     string ParentId,
@@ -51,18 +56,26 @@ public sealed record PolicySearchHit(
     string? State,
     string? County,
     string? AssetType,
-    string? PolicyType);
+    string? PolicyType,
+    double? RerankerScore = null);
 
 /// <summary>
-/// Executes a hybrid (vector + BM25) search against Azure AI Search. Abstracted so tests can mock it.
+/// Executes a hybrid (vector + BM25) search against Azure AI Search, optionally followed by the L2
+/// semantic reranker. Abstracted so tests can mock it.
 /// </summary>
 public interface IAzureSearchExecutor
 {
+    /// <summary>
+    /// Executes hybrid retrieval. When <paramref name="semanticConfiguration"/> is non-null, the
+    /// implementation enables Azure AI Search semantic ranking and populates
+    /// <see cref="PolicySearchHit.RerankerScore"/> on returned hits.
+    /// </summary>
     Task<IReadOnlyList<PolicySearchHit>> HybridSearchAsync(
         string queryText,
         ReadOnlyMemory<float> queryVector,
         string? oDataFilter,
         int topK,
+        string? semanticConfiguration,
         CancellationToken cancellationToken);
 }
 

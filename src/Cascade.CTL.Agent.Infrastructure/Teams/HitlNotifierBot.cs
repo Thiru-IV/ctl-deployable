@@ -5,7 +5,7 @@ using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
 using Microsoft.Extensions.Logging;
 
-namespace Cascade.CTL.Agent.Api.Teams;
+namespace Cascade.CTL.Agent.Infrastructure.Teams;
 
 /// <summary>
 /// Bot Framework activity handler. Two responsibilities:
@@ -142,7 +142,9 @@ public sealed class HitlNotifierBot : ActivityHandler
         {
             Action = action,
             OverriddenVerdict = overriddenVerdict,
-            OverriddenConfidence = action == HumanReviewAction.OverrideVerdict ? payload.OverrideConfidence : null,
+            // Always capture the reviewer-supplied confidence regardless of action so an
+            // adjusted slider takes effect on both Accept and Override.
+            OverriddenConfidence = payload.OverrideConfidence,
             ReviewerNotes = notes,
             ReviewedBy = reviewerName
         };

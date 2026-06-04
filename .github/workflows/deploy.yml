@@ -46,9 +46,9 @@ on:
         required: false
         default: 'https://cascade.example.com/reviews/{0}?session={1}'
       teamsTimeoutSec:
-        description: 'Seconds to wait for the reviewer click before fallback'
+        description: 'Seconds to wait for the reviewer click before fallback (default 1800 = 30 min)'
         required: false
-        default: '300'
+        default: '1800'
 
 concurrency:
   group: aca-deploy-${{ github.ref }}

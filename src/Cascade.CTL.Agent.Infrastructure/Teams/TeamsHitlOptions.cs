@@ -1,4 +1,4 @@
-namespace Cascade.CTL.Agent.Api.Teams;
+namespace Cascade.CTL.Agent.Infrastructure.Teams;
 
 /// <summary>
 /// Configuration for the Teams HITL notification channel.
@@ -38,6 +38,7 @@ public sealed class TeamsHitlOptions
     /// <summary>
     /// How long the workflow waits for the reviewer to click a button in Teams
     /// before falling back to the inner auto-approve service.
+    /// Default: 1800 seconds (30 minutes).
     /// </summary>
-    public int ResponseTimeoutSeconds { get; set; } = 300;
+    public int ResponseTimeoutSeconds { get; set; } = 1800;
 }

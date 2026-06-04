@@ -33,6 +33,7 @@ public sealed class CTLWorkflowOrchestrator : ICTLEvaluationOrchestrator
     private readonly QualityGateOptions _qualityGateOptions;
     private readonly VerdictPolicyOptions _verdictPolicyOptions;
     private readonly ResilienceOptions _resilienceOptions;
+    private readonly ReflectionDeterminismOptions _determinismOptions;
     private readonly ILogger<CTLWorkflowOrchestrator> _logger;
 
     private static JsonSerializerOptions JsonOptions => VerdictParser.JsonOptions;
@@ -50,6 +51,7 @@ public sealed class CTLWorkflowOrchestrator : ICTLEvaluationOrchestrator
         IOptions<CTLAgentOptions> agentOptions,
         IOptions<VerdictPolicyOptions> verdictPolicyOptions,
         IOptions<ResilienceOptions> resilienceOptions,
+        IOptions<ReflectionDeterminismOptions> determinismOptions,
         ILogger<CTLWorkflowOrchestrator> logger)
     {
         _chatClient = chatClient;
@@ -64,6 +66,7 @@ public sealed class CTLWorkflowOrchestrator : ICTLEvaluationOrchestrator
         _qualityGateOptions = agentOptions.Value.QualityGate;
         _verdictPolicyOptions = verdictPolicyOptions.Value;
         _resilienceOptions = resilienceOptions.Value;
+        _determinismOptions = determinismOptions.Value;
         _logger = logger;
     }
 
@@ -102,8 +105,8 @@ public sealed class CTLWorkflowOrchestrator : ICTLEvaluationOrchestrator
         var investigationPhase = new InvestigationPhaseExecutor(
             _chatClient, _toolProvider, _auditService, _resilienceOptions, _logger);
         var reflectionPhase = new ReflectionExecutor(
-            _chatClient, _toolProvider, _auditService, _resilienceOptions, _logger);
-        var verdictParsingPhase = new VerdictParsingExecutor(_auditService, _logger, _verdictPolicyOptions.HumanReviewConfidenceThreshold);
+            _chatClient, _toolProvider, _auditService, _resilienceOptions, _logger, _determinismOptions);
+        var verdictParsingPhase = new VerdictParsingExecutor(_auditService, _logger, _verdictPolicyOptions.HumanReviewConfidenceThreshold, _determinismOptions);
         var qualityGatePhase = new QualityGateExecutor(
             _groundednessEvaluator, _auditService, _qualityGateOptions, _logger);
         var humanReviewPhase = new HumanReviewExecutor(

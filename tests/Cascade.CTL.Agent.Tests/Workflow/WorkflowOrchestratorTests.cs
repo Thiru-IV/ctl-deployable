@@ -55,7 +55,8 @@ public class WorkflowOrchestratorTests
         var orchestrator = new CTLWorkflowOrchestrator(
             _mockChatClient, _mockToolProvider, _mockAuditService,
             _mockAssetProfileProvider, _mockHumanReviewService, _contentSafetyGuard, _tokenBudgetGuard, _requestValidator,
-            _groundednessEvaluator, _agentOptions, Options.Create(new VerdictPolicyOptions()), _resilienceOptions, logger);
+            _groundednessEvaluator, _agentOptions, Options.Create(new VerdictPolicyOptions()), _resilienceOptions,
+            Options.Create(new ReflectionDeterminismOptions()), logger);
 
         orchestrator.Should().BeAssignableTo<ICTLEvaluationOrchestrator>();
     }
@@ -71,7 +72,8 @@ public class WorkflowOrchestratorTests
         var orchestrator = new CTLWorkflowOrchestrator(
             _mockChatClient, _mockToolProvider, _mockAuditService,
             _mockAssetProfileProvider, _mockHumanReviewService, _contentSafetyGuard, _tokenBudgetGuard, _requestValidator,
-            _groundednessEvaluator, _agentOptions, Options.Create(new VerdictPolicyOptions()), _resilienceOptions, logger);
+            _groundednessEvaluator, _agentOptions, Options.Create(new VerdictPolicyOptions()), _resilienceOptions,
+            Options.Create(new ReflectionDeterminismOptions()), logger);
 
         var request = new CTLEvaluationRequest
         {
@@ -91,7 +93,8 @@ public class WorkflowOrchestratorTests
         var orchestrator = new CTLWorkflowOrchestrator(
             _mockChatClient, _mockToolProvider, _mockAuditService,
             _mockAssetProfileProvider, _mockHumanReviewService, _contentSafetyGuard, _tokenBudgetGuard, _requestValidator,
-            _groundednessEvaluator, _agentOptions, Options.Create(new VerdictPolicyOptions()), _resilienceOptions, logger);
+            _groundednessEvaluator, _agentOptions, Options.Create(new VerdictPolicyOptions()), _resilienceOptions,
+            Options.Create(new ReflectionDeterminismOptions()), logger);
 
         var request = new CTLEvaluationRequest
         {

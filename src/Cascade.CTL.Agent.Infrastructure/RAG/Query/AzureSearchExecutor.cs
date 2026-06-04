@@ -23,6 +23,7 @@ internal sealed class AzureSearchExecutor : IAzureSearchExecutor
         ReadOnlyMemory<float> queryVector,
         string? oDataFilter,
         int topK,
+        string? semanticConfiguration,
         CancellationToken cancellationToken)
     {
         var options = new SearchOptions
@@ -38,6 +39,17 @@ internal sealed class AzureSearchExecutor : IAzureSearchExecutor
             KNearestNeighborsCount = topK,
             Fields = { "contentVector" }
         });
+
+        // Enable L2 semantic reranking when a configuration name is supplied. Azure AI Search will
+        // take the top hybrid candidates (up to 50) and re-order them with the Microsoft cross-encoder.
+        if (!string.IsNullOrWhiteSpace(semanticConfiguration))
+        {
+            options.QueryType = SearchQueryType.Semantic;
+            options.SemanticSearch = new SemanticSearchOptions
+            {
+                SemanticConfigurationName = semanticConfiguration,
+            };
+        }
 
         options.Select.Add("parentId");
         options.Select.Add("chunkIndex");
@@ -65,7 +77,8 @@ internal sealed class AzureSearchExecutor : IAzureSearchExecutor
                 State: NullIfEmpty(doc.State),
                 County: NullIfEmpty(doc.County),
                 AssetType: NullIfEmpty(doc.AssetType),
-                PolicyType: NullIfEmpty(doc.PolicyType)));
+                PolicyType: NullIfEmpty(doc.PolicyType),
+                RerankerScore: result.SemanticSearch?.RerankerScore));
         }
         return hits;
     }

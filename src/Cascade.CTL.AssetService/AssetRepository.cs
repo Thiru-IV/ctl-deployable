@@ -69,6 +69,23 @@ public sealed class InMemoryAssetRepository : IAssetRepository
             PropertyAddress = "42 Maple Drive, White Plains, NY 10601",
             SellerName = "Empire State Mortgage",
             IngestionDate = DateTime.UtcNow.AddDays(-1)
+        },
+        // ASSET-AZ-005: maximally clean profile designed for ~0.90+ confidence band.
+        // Tier 1 institutional seller + multi-source corroboration baked into provider mocks
+        // (BPO ≈ AVM within 0.5%, vacancy verified by 3 independent sources, clean title,
+        // no HOA, no violations, fresh ingestion).
+        ["ASSET-AZ-005"] = new Asset
+        {
+            AssetId = "ASSET-AZ-005",
+            AssetType = AssetType.Foreclosure,
+            StateCode = "AZ",
+            County = "Maricopa",
+            SellerTier = SellerTier.Tier1,
+            OccupancyStatus = OccupancyStatus.Vacant,
+            ParcelId = "AZ-MAR-901234",
+            PropertyAddress = "1700 Desert View Lane, Phoenix, AZ 85016",
+            SellerName = "National Trust Bank",
+            IngestionDate = DateTime.UtcNow.AddDays(-2)
         }
     };
 

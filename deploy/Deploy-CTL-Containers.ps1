@@ -23,7 +23,7 @@ param(
     [string] $TeamsAppType       = 'MultiTenant',
     [string] $TeamsReviewerUpn   = '',
     [string] $CascadeReviewUrl   = 'https://cascade.example.com/reviews/{0}?session={1}',
-    [int]    $TeamsTimeoutSec    = 300
+    [int]    $TeamsTimeoutSec    = 1800
 )
 
 $ErrorActionPreference = 'Stop'

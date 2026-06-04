@@ -55,14 +55,20 @@ public sealed class AzureSearchRAGService : IRAGQueryService
         var filter = BuildODataFilter(stateCode, county, assetType);
 
         var topK = _options.TopK > 0 ? _options.TopK : 5;
+        var semanticConfig = _options.SemanticRankerEnabled
+            ? _options.SemanticConfigurationName
+            : null;
 
         var hits = await _executor
-            .HybridSearchAsync(query, queryVector, filter, topK, cancellationToken)
+            .HybridSearchAsync(query, queryVector, filter, topK, semanticConfig, cancellationToken)
             .ConfigureAwait(false);
 
         var documents = hits.Select(ToRagDocument).ToArray();
 
-        _logger.LogInformation("AzureSearchRAG: Found {Count} matching chunks", documents.Length);
+        _logger.LogInformation(
+            "AzureSearchRAG: Found {Count} matching chunks (semanticRanker={Reranker})",
+            documents.Length,
+            semanticConfig is null ? "off" : "on");
 
         return new RAGQueryResult
         {
@@ -91,15 +97,27 @@ public sealed class AzureSearchRAGService : IRAGQueryService
 
     private static string Escape(string value) => value.Replace("'", "''");
 
-    private static RAGDocument ToRagDocument(PolicySearchHit hit) => new()
+    /// <summary>
+    /// Maps a <see cref="PolicySearchHit"/> to a <see cref="RAGDocument"/>. When the L2 semantic reranker
+    /// score is present it is normalised from Azure's 0–4 range into 0–1 and used as the relevance score;
+    /// otherwise the raw L1 hybrid score is clamped to 0–1.
+    /// </summary>
+    internal static RAGDocument ToRagDocument(PolicySearchHit hit)
     {
-        Id = $"{hit.ParentId}#c{hit.ChunkIndex}",
-        Title = hit.Title,
-        Content = hit.Content,
-        RelevanceScore = Math.Clamp(hit.Score, 0.0, 1.0),
-        State = hit.State,
-        County = hit.County,
-        AssetType = hit.AssetType,
-        PolicyType = hit.PolicyType,
-    };
+        var relevance = hit.RerankerScore is double reranker
+            ? Math.Clamp(reranker / 4.0, 0.0, 1.0)
+            : Math.Clamp(hit.Score, 0.0, 1.0);
+
+        return new RAGDocument
+        {
+            Id = $"{hit.ParentId}#c{hit.ChunkIndex}",
+            Title = hit.Title,
+            Content = hit.Content,
+            RelevanceScore = relevance,
+            State = hit.State,
+            County = hit.County,
+            AssetType = hit.AssetType,
+            PolicyType = hit.PolicyType,
+        };
+    }
 }

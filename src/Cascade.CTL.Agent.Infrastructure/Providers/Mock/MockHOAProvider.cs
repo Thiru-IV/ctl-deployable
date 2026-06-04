@@ -45,6 +45,13 @@ public sealed class MockHOAProvider : IHOAProvider
                 LastPaymentDate = DateTime.UtcNow.AddMonths(-1),
                 Status = "Current"
             },
+            var a when a.Contains("Phoenix", StringComparison.OrdinalIgnoreCase) => new HOAResult
+            {
+                PropertyAddress = propertyAddress,
+                HasHOA = false,
+                IsDelinquent = false,
+                Status = "NoHOA"
+            },
             _ => new HOAResult
             {
                 PropertyAddress = propertyAddress,

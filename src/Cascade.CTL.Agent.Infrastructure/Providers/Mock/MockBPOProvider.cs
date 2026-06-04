@@ -50,6 +50,18 @@ public sealed class MockBPOProvider : IBPOProvider
                 QualityRating = "None",
                 ConditionRating = "Unknown"
             },
+            "ASSET-AZ-005" => new BPOResult
+            {
+                AssetId = assetId,
+                HasBPO = true,
+                EstimatedValue = 380000m,
+                BPODate = DateTime.UtcNow.AddDays(-7),
+                QualityRating = "High",
+                IsStale = false,
+                DaysSinceBPO = 7,
+                BPOVendor = "Clear Capital",
+                ConditionRating = "Excellent"
+            },
             _ => new BPOResult
             {
                 AssetId = assetId,

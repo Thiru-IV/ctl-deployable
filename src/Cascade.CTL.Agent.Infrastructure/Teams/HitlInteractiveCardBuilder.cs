@@ -3,7 +3,7 @@ using Cascade.CTL.Agent.Domain.Enums;
 using Cascade.CTL.Agent.Domain.Models;
 using Microsoft.Bot.Schema;
 
-namespace Cascade.CTL.Agent.Api.Teams;
+namespace Cascade.CTL.Agent.Infrastructure.Teams;
 
 /// <summary>
 /// Builds an INTERACTIVE Adaptive Card for Teams HITL with Action.Submit buttons.

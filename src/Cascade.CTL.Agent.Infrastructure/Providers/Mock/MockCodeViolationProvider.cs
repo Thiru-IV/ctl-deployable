@@ -68,6 +68,13 @@ public sealed class MockCodeViolationProvider : ICodeViolationProvider
                     }
                 ]
             },
+            "Maricopa" => new CodeViolationResult
+            {
+                PropertyAddress = propertyAddress,
+                County = county,
+                HasOpenViolations = false,
+                Violations = []
+            },
             _ => new CodeViolationResult
             {
                 PropertyAddress = propertyAddress,

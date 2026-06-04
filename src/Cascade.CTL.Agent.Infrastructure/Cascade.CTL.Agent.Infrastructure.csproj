@@ -20,6 +20,12 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    <!-- Teams HITL (outbound integration). The /api/messages controller lives in
+         the Api project; the bot, adapter wiring, card builder and HITL service
+         are infrastructure-layer concerns. -->
+    <PackageReference Include="Microsoft.Bot.Builder" />
+    <PackageReference Include="Microsoft.Bot.Builder.Integration.AspNet.Core" />
+    <PackageReference Include="AdaptiveCards" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Cascade.CTL.Agent.Tests" />

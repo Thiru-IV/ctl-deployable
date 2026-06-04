@@ -239,9 +239,7 @@
       "name": "recent-sessions"
     }
   ],
-  "fallbackResourceIds": [
-    "/subscriptions/26b9b517-1d62-442c-aa36-cc34ead07b0c/resourceGroups/CTL-Agent-RG/providers/microsoft.insights/components/ctlagent-appinsights"
-  ],
+  "fallbackResourceIds": [],
   "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }
 

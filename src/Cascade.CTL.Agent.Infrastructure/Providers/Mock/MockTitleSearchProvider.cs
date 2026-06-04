@@ -52,6 +52,17 @@ public sealed class MockTitleSearchProvider : ITitleSearchProvider
                 HasHOAFlag = true,
                 ProviderReference = "MOCK-TITLE-FL-003"
             },
+            "AZ-MAR-901234" => new TitleSearchResult
+            {
+                ParcelId = parcelId,
+                StateCode = stateCode,
+                HasClearTitle = true,
+                OpenLiens = [],
+                Encumbrances = [],
+                TitleDefects = [],
+                HasHOAFlag = false,
+                ProviderReference = "MOCK-TITLE-AZ-005"
+            },
             _ => new TitleSearchResult
             {
                 ParcelId = parcelId,

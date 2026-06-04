@@ -10,6 +10,7 @@ using Microsoft.Agents.AI.Workflows;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Polly;
+using System.Text.Json;
 
 namespace Cascade.CTL.Agent.Application.Orchestration.Workflow;
 
@@ -79,6 +80,31 @@ internal abstract class CTLExecutorBase : Executor
         var agent = _chatClient.AsAIAgent(instructions: instructions, tools: [.. tools]);
         var session = await agent.CreateSessionAsync(cancellationToken: cancellationToken);
         var runOptions = new ChatClientAgentRunOptions(new ChatOptions { Temperature = 0.0f });
+
+        using var phaseCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        phaseCts.CancelAfter(TimeSpan.FromSeconds(_resilienceOptions.OrchestratorPhaseTimeoutSeconds));
+
+        var response = await agent.RunAsync(userMessage, session, runOptions, phaseCts.Token);
+        var toolCalls = WorkflowAgentResponseHelper.CountToolCalls(response);
+
+        return (response.Text ?? "No response generated", toolCalls, response);
+    }
+
+    /// <summary>
+    /// Overload that accepts caller-built <see cref="ChatOptions"/> so the Reflection phase can
+    /// pass a deterministic options bundle (seed + temperature + response_format) built by
+    /// <see cref="ReflectionDeterminismFactory"/>.
+    /// </summary>
+    protected async Task<(string text, int toolCalls, AgentResponse response)> RunAgentWithResponseAsync(
+        string instructions, IReadOnlyList<AITool> tools, string userMessage,
+        ChatOptions chatOptions,
+        CancellationToken cancellationToken, string? phaseName = null)
+    {
+        if (phaseName != null) GuardrailsContext.CurrentPhase = phaseName;
+
+        var agent = _chatClient.AsAIAgent(instructions: instructions, tools: [.. tools]);
+        var session = await agent.CreateSessionAsync(cancellationToken: cancellationToken);
+        var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
         using var phaseCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         phaseCts.CancelAfter(TimeSpan.FromSeconds(_resilienceOptions.OrchestratorPhaseTimeoutSeconds));
@@ -471,13 +497,19 @@ internal sealed class InvestigationPhaseExecutor : CTLExecutorBase
 
 internal sealed class ReflectionExecutor : CTLExecutorBase
 {
+    private readonly ReflectionDeterminismOptions? _determinismOptions;
+
     public ReflectionExecutor(
         IChatClient chatClient,
         IMcpToolProvider toolProvider,
         IAuditService auditService,
         ResilienceOptions resilienceOptions,
-        ILogger logger)
-        : base("ReflectionExecutor", chatClient, toolProvider, auditService, resilienceOptions, logger) { }
+        ILogger logger,
+        ReflectionDeterminismOptions? determinismOptions = null)
+        : base("ReflectionExecutor", chatClient, toolProvider, auditService, resilienceOptions, logger)
+    {
+        _determinismOptions = determinismOptions;
+    }
 
     protected override ProtocolBuilder ConfigureProtocol(ProtocolBuilder protocolBuilder) =>
         protocolBuilder.ConfigureRoutes(routes =>
@@ -507,10 +539,16 @@ internal sealed class ReflectionExecutor : CTLExecutorBase
                 input.PlanJson,
                 input.RequiredDomains);
 
+            // Build deterministic ChatOptions (seed derived from AssetId, temp=0, optional
+            // strict JSON schema). Falls back to plain { Temperature=0 } when disabled.
+            var reflectionChatOptions = ReflectionDeterminismFactory.Build(
+                _determinismOptions, input.AssetId, input.SessionId);
+
             var (verdictJson, toolCalls, reflectionResponse) = await RunAgentWithResponseAsync(
                 OrchestratorPrompts.ReflectionSystemPrompt,
                 _toolProvider.GetToolsForOrchestrator(),
                 reflectionInput,
+                reflectionChatOptions,
                 cancellationToken,
                 phaseName: "Reflection");
 
@@ -620,12 +658,19 @@ internal sealed class VerdictParsingExecutor : Executor
     private readonly IAuditService _auditService;
     private readonly ILogger _logger;
     private readonly double _humanReviewThreshold;
+    private readonly ReflectionDeterminismOptions? _determinismOptions;
 
-    public VerdictParsingExecutor(IAuditService auditService, ILogger logger, double humanReviewThreshold = 0.75) : base("VerdictParsingExecutor")
+    public VerdictParsingExecutor(
+        IAuditService auditService,
+        ILogger logger,
+        double humanReviewThreshold = 0.75,
+        ReflectionDeterminismOptions? determinismOptions = null)
+        : base("VerdictParsingExecutor")
     {
         _auditService = auditService;
         _logger = logger;
         _humanReviewThreshold = humanReviewThreshold;
+        _determinismOptions = determinismOptions;
     }
 
     protected override ProtocolBuilder ConfigureProtocol(ProtocolBuilder protocolBuilder) =>
@@ -646,7 +691,7 @@ internal sealed class VerdictParsingExecutor : Executor
                           "validate verdict-confidence consistency, and apply remap rules if needed (threshold: " + _humanReviewThreshold.ToString("F2") + ")."
         }, cancellationToken);
 
-        var verdict = VerdictParser.ParseVerdict(input.VerdictJson, input.AssetId, input.SessionId, _logger, _humanReviewThreshold);
+        var verdict = VerdictParser.ParseVerdict(input.VerdictJson, input.AssetId, input.SessionId, _logger, _humanReviewThreshold, _determinismOptions);
 
         // Record the deterministic parsing result so the audit trail shows what happened
         var remapCondition = verdict.Conditions.FirstOrDefault(c => c.Contains("Verdict remapped from"));
@@ -944,21 +989,26 @@ internal sealed class HumanReviewExecutor : Executor
 
             humanReview = await _humanReviewService.RequestReviewAsync(reviewRequest, cancellationToken);
 
-            if (humanReview.Action == HumanReviewAction.OverrideVerdict
-                && humanReview.OverriddenVerdict.HasValue)
+            var verdictChanged = humanReview.OverriddenVerdict.HasValue
+                && humanReview.OverriddenVerdict.Value != verdict.Verdict;
+            var confidenceChanged = humanReview.OverriddenConfidence.HasValue
+                && Math.Abs(humanReview.OverriddenConfidence.Value - verdict.ConfidenceScore) > 0.0001;
+
+            if (verdictChanged || confidenceChanged)
             {
                 var previousVerdict = verdict.Verdict;
                 var previousConfidence = verdict.ConfidenceScore;
+                var newVerdict = humanReview.OverriddenVerdict ?? verdict.Verdict;
+                var newConfidence = humanReview.OverriddenConfidence ?? verdict.ConfidenceScore;
 
-                _logger.LogInformation("  Human override: {Original} → {Override} (confidence: {OldConf:F2} → {NewConf:F2})",
-                    previousVerdict, humanReview.OverriddenVerdict.Value,
-                    previousConfidence, humanReview.OverriddenConfidence ?? previousConfidence);
+                _logger.LogInformation("  Human review applied: {Original} → {Override} (confidence: {OldConf:F2} → {NewConf:F2})",
+                    previousVerdict, newVerdict, previousConfidence, newConfidence);
 
                 verdict = verdict with
                 {
-                    Verdict = humanReview.OverriddenVerdict.Value,
-                    ConfidenceScore = humanReview.OverriddenConfidence ?? verdict.ConfidenceScore,
-                    Conditions = [.. verdict.Conditions, $"Human override by {humanReview.ReviewedBy}: {humanReview.ReviewerNotes}"],
+                    Verdict = newVerdict,
+                    ConfidenceScore = newConfidence,
+                    Conditions = [.. verdict.Conditions, $"Human review by {humanReview.ReviewedBy}: {humanReview.ReviewerNotes}"],
                     ReflectionLog = verdict.ReflectionLog + $"\n\n[HUMAN REVIEW] {humanReview.Action} by {humanReview.ReviewedBy}: {humanReview.ReviewerNotes}"
                 };
 

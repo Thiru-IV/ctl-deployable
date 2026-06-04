@@ -6,7 +6,7 @@
     "version": "1.0.0"
   },
   "servers": [
-    { "url": "https://REPLACE_WITH_FQDN", "description": "Azure Container Apps" }
+    { "url": "https://ctl-agent-api.invalid", "description": "Patched at deploy time by Register-FoundryAgent.ps1" }
   ],
   "paths": {
     "/evaluate": {

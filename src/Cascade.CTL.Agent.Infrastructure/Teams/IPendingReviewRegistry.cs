@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Cascade.CTL.Agent.Domain.Models;
 
-namespace Cascade.CTL.Agent.Api.Teams;
+namespace Cascade.CTL.Agent.Infrastructure.Teams;
 
 /// <summary>
 /// Tracks in-flight HITL reviews so that the workflow can asynchronously wait

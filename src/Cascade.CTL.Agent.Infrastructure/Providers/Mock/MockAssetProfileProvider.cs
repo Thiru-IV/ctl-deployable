@@ -48,6 +48,24 @@ public sealed class MockAssetProfileProvider : IAssetProfileProvider
             PropertyAddress = "910 Palm Ave, Miami, FL 33101",
             SellerName = "Southeast Financial",
             IngestionDate = DateTime.UtcNow.AddDays(-2)
+        },
+        // ASSET-AZ-005: maximally clean profile with multi-source corroboration cues.
+        // Designed to land in the ~0.90–0.95 High/VeryHigh confidence band (Clear).
+        // Key design: BPO and AVM align within 0.5% (independent valuation cross-check),
+        // occupancy verified by inspector + utility records + neighbor canvass (3 sources),
+        // clean title, no HOA, no violations, Tier 1 institutional seller, fresh data.
+        ["ASSET-AZ-005"] = new Asset
+        {
+            AssetId = "ASSET-AZ-005",
+            AssetType = AssetType.Foreclosure,
+            StateCode = "AZ",
+            County = "Maricopa",
+            SellerTier = SellerTier.Tier1,
+            OccupancyStatus = OccupancyStatus.Vacant,
+            ParcelId = "AZ-MAR-901234",
+            PropertyAddress = "1700 Desert View Lane, Phoenix, AZ 85016",
+            SellerName = "National Trust Bank",
+            IngestionDate = DateTime.UtcNow.AddDays(-2)
         }
     };
 

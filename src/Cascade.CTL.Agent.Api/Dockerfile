@@ -21,9 +21,11 @@ COPY src/Cascade.CTL.Agent.Guardrails/     src/Cascade.CTL.Agent.Guardrails/
 COPY src/Cascade.CTL.Agent.Application/    src/Cascade.CTL.Agent.Application/
 COPY src/Cascade.CTL.Agent.Api/            src/Cascade.CTL.Agent.Api/
 
-# Baseline config (ACA env vars override secrets at runtime)
+# Baseline config (ACA env vars override secrets at runtime).
+# RAG policy JSONs are linked into the Api csproj from ../../config/rag-knowledge,
+# so we must mirror the repo layout inside the build context.
 COPY config/appsettings.json                src/Cascade.CTL.Agent.Api/appsettings.json
-COPY config/rag-knowledge/                  src/Cascade.CTL.Agent.Api/rag-knowledge/
+COPY config/rag-knowledge/                  config/rag-knowledge/
 
 RUN dotnet publish src/Cascade.CTL.Agent.Api/Cascade.CTL.Agent.Api.csproj \
     -c Release -o /app/publish --no-restore /p:UseAppHost=false

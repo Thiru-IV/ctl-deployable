@@ -26,5 +26,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Update="openapi.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Link RAG policy JSONs from the single source of truth at repo-root config/.
+         Same pattern as Cascade.CTL.Agent.Evals.csproj. The files are copied next to
+         the binaries at build/publish so AppContext.BaseDirectory/rag-knowledge resolves. -->
+    <Content Include="..\..\config\rag-knowledge\**\*.json"
+             LinkBase="rag-knowledge"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

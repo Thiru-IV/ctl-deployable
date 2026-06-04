@@ -53,6 +53,19 @@ public sealed class MockAVMProvider : IAVMProvider
                 ValuationDate = DateTime.UtcNow.AddDays(-7),
                 AVMProvider = "CoreLogic"
             },
+            // AZ (ASSET-AZ-005): AVM aligns with BPO within 0.5% — strong cross-source corroboration.
+            "AZ" => new AVMResult
+            {
+                PropertyAddress = propertyAddress,
+                StateCode = stateCode,
+                HasAVM = true,
+                EstimatedValue = 382000m,
+                ConfidenceScore = 0.96,
+                VarianceFromBPO = 2000m,
+                VariancePercentage = 0.53,
+                ValuationDate = DateTime.UtcNow.AddDays(-2),
+                AVMProvider = "HouseCanary"
+            },
             _ => new AVMResult
             {
                 PropertyAddress = propertyAddress,

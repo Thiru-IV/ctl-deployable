@@ -9,6 +9,7 @@ namespace Cascade.CTL.Agent.Infrastructure.RAG.Indexing;
 /// <list type="bullet">
 ///   <item>Keyword (BM25) search on <c>title</c> and <c>content</c>.</item>
 ///   <item>Vector ANN search on <c>contentVector</c> using HNSW.</item>
+///   <item>L2 semantic reranking via an attached semantic configuration that surfaces <c>title</c> as the title field and <c>content</c> as the body field.</item>
 ///   <item>Metadata pre-filtering on <c>state</c>, <c>county</c>, <c>assetType</c>, <c>policyType</c>, <c>parentId</c>.</item>
 /// </list>
 /// </summary>
@@ -16,6 +17,7 @@ public static class SearchIndexSchema
 {
     public const string VectorSearchProfileName = "ctl-vector-profile";
     public const string HnswConfigurationName = "ctl-hnsw";
+    public const string SemanticConfigurationName = "ctl-semantic-config";
 
     public static SearchIndex BuildIndex(string indexName, int vectorDimensions)
     {
@@ -58,6 +60,19 @@ public static class SearchIndexSchema
                 Profiles =
                 {
                     new VectorSearchProfile(VectorSearchProfileName, HnswConfigurationName)
+                }
+            },
+            SemanticSearch = new SemanticSearch
+            {
+                Configurations =
+                {
+                    new SemanticConfiguration(
+                        SemanticConfigurationName,
+                        new SemanticPrioritizedFields
+                        {
+                            TitleField = new SemanticField("title"),
+                            ContentFields = { new SemanticField("content") },
+                        })
                 }
             }
         };

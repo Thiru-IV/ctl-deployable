@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Bot.Schema;
 
-namespace Cascade.CTL.Agent.Api.Teams;
+namespace Cascade.CTL.Agent.Infrastructure.Teams;
 
 /// <summary>
 /// Stores Bot Framework <see cref="ConversationReference"/>s captured the first time a user

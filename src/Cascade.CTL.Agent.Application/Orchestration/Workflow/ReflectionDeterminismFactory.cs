@@ -107,6 +107,9 @@ internal static class ReflectionDeterminismFactory
         var seed = ResolveSeed(options, assetId, sessionId);
         if (seed.HasValue)
         {
+            // Microsoft.Extensions.AI 10.x OpenAI connector reads ChatOptions.Seed → request `seed`.
+            // AdditionalProperties[SeedPropertyKey] kept for any connector still using the legacy path.
+            chatOptions.Seed = seed.Value;
             chatOptions.AdditionalProperties ??= new AdditionalPropertiesDictionary();
             chatOptions.AdditionalProperties[SeedPropertyKey] = seed.Value;
         }
