@@ -1,5 +1,7 @@
 # Azure AI Foundry Integration — Current State, Best Practices, Improvement Opportunities
 
+MS Foundry Documentation: https://learn.microsoft.com/en-us/azure/foundry/concepts/architecture
+
 **Scope:** how the CTL Agent solution integrates with Azure AI Foundry today, what we already do well, what we should change, where Managed Identity can replace remaining secrets, which additional Foundry resources are worth leveraging, and how to materially improve LLM/agent observability.
 
 **Audience:** engineers and reviewers working on this repo. Sections are technical, not promotional.
