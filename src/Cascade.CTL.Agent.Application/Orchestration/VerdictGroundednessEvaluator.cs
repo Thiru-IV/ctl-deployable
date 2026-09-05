@@ -1,3 +1,4 @@
+using Cascade.CTL.Agent.Application.Prompts;
 using Cascade.CTL.Agent.Domain.Enums;
 using Cascade.CTL.Agent.Domain.Models;
 using Microsoft.Extensions.AI;
@@ -15,30 +16,6 @@ public sealed class VerdictGroundednessEvaluator
 {
     private readonly IChatClient _chatClient;
     private readonly ILogger<VerdictGroundednessEvaluator> _logger;
-
-    internal const string JudgeSystemPrompt = """
-        You are a quality assurance judge for a Clear-To-List (CTL) property evaluation system.
-        Your ONLY task is to determine whether a verdict is grounded in the investigation findings.
-
-        You will be given:
-        1. Investigation findings from Legal, Valuation, and Occupancy agents.
-        2. A verdict (Clear, ClearWithConditions, NotClear, or NeedsHumanReview) with a confidence score and evidence trail.
-
-        Score the verdict's groundedness on a scale of 1 to 5:
-        - 5: Every claim in the verdict is directly supported by the findings. Evidence trail accurately cites findings.
-        - 4: The verdict is well-supported with minor omissions. No contradictions.
-        - 3: The verdict is partially supported but makes claims not found in findings, or ignores relevant findings.
-        - 2: The verdict contradicts the findings in significant ways, or the confidence score is inconsistent with the evidence.
-        - 1: The verdict is fabricated or completely unsupported by the findings.
-
-        Respond with ONLY a JSON object:
-        {
-            "groundednessScore": <1-5>,
-            "reasoning": "<one paragraph explaining your score>"
-        }
-
-        Do NOT evaluate the correctness of the verdict itself — only whether it is grounded in the provided findings.
-        """;
 
     public VerdictGroundednessEvaluator(
         IChatClient chatClient,
@@ -58,13 +35,13 @@ public sealed class VerdictGroundednessEvaluator
         CTLVerdictDto verdict,
         CancellationToken cancellationToken = default)
     {
-        var userPrompt = BuildUserPrompt(investigationFindings, verdict);
+        var userPrompt = GroundednessJudgePrompts.BuildVerdictUserPrompt(investigationFindings, verdict);
 
         try
         {
             var messages = new List<ChatMessage>
             {
-                new(ChatRole.System, JudgeSystemPrompt),
+                new(ChatRole.System, GroundednessJudgePrompts.VerdictJudgeSystemPrompt),
                 new(ChatRole.User, userPrompt)
             };
 
@@ -86,19 +63,6 @@ public sealed class VerdictGroundednessEvaluator
             };
         }
     }
-
-    internal static string BuildUserPrompt(string investigationFindings, CTLVerdictDto verdict) =>
-        $"""
-        ## Investigation Findings
-        {investigationFindings}
-
-        ## Verdict to Evaluate
-        Verdict: {verdict.Verdict}
-        Confidence Score: {verdict.ConfidenceScore:F2}
-        Conditions: {(verdict.Conditions.Length > 0 ? string.Join("; ", verdict.Conditions) : "None")}
-        Evidence Trail: {string.Join("; ", verdict.EvidenceTrail)}
-        Reflection Log: {verdict.ReflectionLog}
-        """;
 
     internal static GroundednessResult ParseJudgeResponse(string responseText)
     {

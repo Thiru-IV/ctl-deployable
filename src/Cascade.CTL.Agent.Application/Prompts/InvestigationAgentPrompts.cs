@@ -1,5 +1,7 @@
 namespace Cascade.CTL.Agent.Application.Prompts;
 
+using Cascade.CTL.Agent.Domain.Enums;
+
 public static class InvestigationAgentPrompts
 {
     public const string LegalAgentSystemPrompt = """
@@ -175,4 +177,25 @@ public static class InvestigationAgentPrompts
             "summary": "narrative summary of occupancy and condition assessment"
         }
         """;
+
+    /// <summary>Returns the system prompt for the given investigation domain.</summary>
+    public static string GetSystemPrompt(VerificationDomain domain) => domain switch
+    {
+        VerificationDomain.Legal => LegalAgentSystemPrompt,
+        VerificationDomain.Valuation => ValuationAgentSystemPrompt,
+        VerificationDomain.Occupancy => OccupancyAgentSystemPrompt,
+        _ => throw new ArgumentOutOfRangeException(nameof(domain))
+    };
+
+    /// <summary>Builds the investigation phase user prompt for the given domain.</summary>
+    public static string BuildDomainInput(VerificationDomain domain, string planJson) => domain switch
+    {
+        VerificationDomain.Legal =>
+            $"Evaluate legal and title clearance for the asset. Context from planning phase:\n{planJson}",
+        VerificationDomain.Valuation =>
+            $"Evaluate valuation readiness for the asset. Context from planning phase:\n{planJson}",
+        VerificationDomain.Occupancy =>
+            $"Evaluate occupancy and property condition for the asset. Context from planning phase:\n{planJson}",
+        _ => throw new ArgumentOutOfRangeException(nameof(domain))
+    };
 }

@@ -1,3 +1,4 @@
+using Cascade.CTL.Agent.Application.Prompts;
 using Cascade.CTL.Agent.Domain.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
@@ -32,30 +33,6 @@ public sealed class CTLGroundednessEvaluator : IEvaluator
         FrequencyPenalty = 0.0f,
         ResponseFormat = ChatResponseFormat.Text
     };
-
-    // Same CTL-tuned prompt used by the runtime VerdictGroundednessEvaluator.
-    internal const string SystemPrompt = """
-        You are a quality assurance judge for a Clear-To-List (CTL) property evaluation system.
-        Your ONLY task is to determine whether a verdict is grounded in the investigation findings.
-
-        You will be given:
-        1. Investigation findings from Legal, Valuation, and Occupancy agents.
-        2. A verdict (Clear, ClearWithConditions, NotClear, or NeedsHumanReview) with a confidence score and evidence trail.
-
-        Score the verdict's groundedness on a scale of 1 to 5:
-        - 5: Every claim in the verdict is directly supported by the findings. Evidence trail accurately cites findings.
-        - 4: The verdict is well-supported with minor omissions. No contradictions.
-        - 3: The verdict is partially supported but makes claims not found in findings, or ignores relevant findings.
-        - 2: The verdict contradicts the findings in significant ways, or the confidence score is inconsistent with the evidence.
-        - 1: The verdict is fabricated or completely unsupported by the findings.
-
-        Provide your assessment in the following format:
-        <S0>Let's think step by step: your chain of thoughts</S0>
-        <S1>your explanation</S1>
-        <S2>your Score (integer 1-5)</S2>
-
-        Do NOT evaluate the correctness of the verdict itself — only whether it is grounded in the provided findings.
-        """;
 
     public async ValueTask<EvaluationResult> EvaluateAsync(
         IEnumerable<ChatMessage> messages,
@@ -97,14 +74,9 @@ public sealed class CTLGroundednessEvaluator : IEvaluator
         {
             var evaluationMessages = new List<ChatMessage>
             {
-                new(ChatRole.System, SystemPrompt),
-                new(ChatRole.User, $"""
-                    ## Investigation Findings (CONTEXT)
-                    {groundingContext.GroundingContext}
-
-                    ## Verdict to Evaluate (RESPONSE)
-                    {modelResponse.Text}
-                    """)
+                new(ChatRole.System, GroundednessJudgePrompts.EvaluationJudgeSystemPrompt),
+                new(ChatRole.User, GroundednessJudgePrompts.BuildEvaluationUserPrompt(
+                    groundingContext.GroundingContext, modelResponse.Text))
             };
 
             var response = await chatConfiguration.ChatClient.GetResponseAsync(

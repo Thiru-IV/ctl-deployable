@@ -161,6 +161,11 @@ public static class OrchestratorPrompts
     private static readonly HashSet<VerificationDomain> AllDomains =
         [VerificationDomain.Legal, VerificationDomain.Valuation, VerificationDomain.Occupancy];
 
+    /// <summary>Builds the planning phase user prompt.</summary>
+    public static string BuildPlanningInput(string assetId) =>
+        $"Build a CTL verification plan for asset ID: {assetId}. " +
+        "Retrieve the asset profile first, then query the knowledge base for relevant policies.";
+
     /// <summary>
     /// Builds the reflection phase user prompt by injecting domain findings, asset profile,
     /// and plan context into a structured template.

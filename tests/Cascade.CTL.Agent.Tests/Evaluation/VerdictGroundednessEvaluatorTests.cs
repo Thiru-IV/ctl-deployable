@@ -1,5 +1,6 @@
 using Cascade.CTL.Agent.Application.Configuration;
 using Cascade.CTL.Agent.Application.Orchestration;
+using Cascade.CTL.Agent.Application.Prompts;
 using Cascade.CTL.Agent.Application.Resilience;
 using Cascade.CTL.Agent.Domain.Contracts;
 using Cascade.CTL.Agent.Domain.Enums;
@@ -115,12 +116,12 @@ public class VerdictGroundednessEvaluatorTests
         result.EvaluationSucceeded.Should().BeTrue();
     }
 
-    // ── BuildUserPrompt ─────────────────────────────────────────────
+    // ── BuildVerdictUserPrompt ──────────────────────────────────────
 
     [Fact]
     public void BuildUserPrompt_IncludesAllVerdictFields()
     {
-        var prompt = VerdictGroundednessEvaluator.BuildUserPrompt(SampleFindings, SampleVerdict);
+        var prompt = GroundednessJudgePrompts.BuildVerdictUserPrompt(SampleFindings, SampleVerdict);
 
         prompt.Should().Contain("Investigation Findings");
         prompt.Should().Contain(SampleFindings);
@@ -139,7 +140,7 @@ public class VerdictGroundednessEvaluatorTests
             Conditions = ["HOA payment required", "BPO refresh needed"]
         };
 
-        var prompt = VerdictGroundednessEvaluator.BuildUserPrompt(SampleFindings, verdict);
+        var prompt = GroundednessJudgePrompts.BuildVerdictUserPrompt(SampleFindings, verdict);
 
         prompt.Should().Contain("HOA payment required; BPO refresh needed");
     }
@@ -147,7 +148,7 @@ public class VerdictGroundednessEvaluatorTests
     [Fact]
     public void BuildUserPrompt_NoConditions_ShowsNone()
     {
-        var prompt = VerdictGroundednessEvaluator.BuildUserPrompt(SampleFindings, SampleVerdict);
+        var prompt = GroundednessJudgePrompts.BuildVerdictUserPrompt(SampleFindings, SampleVerdict);
 
         prompt.Should().Contain("Conditions: None");
     }
@@ -272,8 +273,8 @@ public class VerdictGroundednessEvaluatorTests
     [Fact]
     public void JudgeSystemPrompt_ContainsScoreCriteria()
     {
-        VerdictGroundednessEvaluator.JudgeSystemPrompt.Should().Contain("1 to 5");
-        VerdictGroundednessEvaluator.JudgeSystemPrompt.Should().Contain("groundednessScore");
-        VerdictGroundednessEvaluator.JudgeSystemPrompt.Should().Contain("grounded");
+        GroundednessJudgePrompts.VerdictJudgeSystemPrompt.Should().Contain("1 to 5");
+        GroundednessJudgePrompts.VerdictJudgeSystemPrompt.Should().Contain("groundednessScore");
+        GroundednessJudgePrompts.VerdictJudgeSystemPrompt.Should().Contain("grounded");
     }
 }

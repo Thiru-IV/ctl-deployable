@@ -208,7 +208,7 @@ internal sealed class PlanningExecutor : CTLExecutorBase
             var (planJson, toolCalls, planResponse) = await RunAgentWithResponseAsync(
                 OrchestratorPrompts.PlanningSystemPrompt,
                 _toolProvider.GetToolsForOrchestrator(),
-                $"Build a CTL verification plan for asset ID: {request.AssetId}. Retrieve the asset profile first, then query the knowledge base for relevant policies.",
+                OrchestratorPrompts.BuildPlanningInput(request.AssetId),
                 cancellationToken,
                 phaseName: "Planning");
 
@@ -321,25 +321,22 @@ internal sealed class InvestigationPhaseExecutor : CTLExecutorBase
     private async Task<(VerificationDomain domain, string findings, int toolCalls)> RunDomainAgentAsync(
         VerificationDomain domain, PlanResult plan, CancellationToken cancellationToken)
     {
-        var (agentName, systemPrompt, userMessage, tools) = domain switch
+        var (agentName, tools) = domain switch
         {
             VerificationDomain.Legal => (
                 "Legal & Title",
-                InvestigationAgentPrompts.LegalAgentSystemPrompt,
-                $"Evaluate legal and title clearance for the asset. Context from planning phase:\n{plan.PlanJson}",
                 _toolProvider.GetToolsForLegalAgent()),
             VerificationDomain.Valuation => (
                 "Valuation Readiness",
-                InvestigationAgentPrompts.ValuationAgentSystemPrompt,
-                $"Evaluate valuation readiness for the asset. Context from planning phase:\n{plan.PlanJson}",
                 _toolProvider.GetToolsForValuationAgent()),
             VerificationDomain.Occupancy => (
                 "Occupancy & Condition",
-                InvestigationAgentPrompts.OccupancyAgentSystemPrompt,
-                $"Evaluate occupancy and property condition for the asset. Context from planning phase:\n{plan.PlanJson}",
                 _toolProvider.GetToolsForOccupancyAgent()),
             _ => throw new ArgumentOutOfRangeException(nameof(domain))
         };
+
+        var systemPrompt = InvestigationAgentPrompts.GetSystemPrompt(domain);
+        var userMessage = InvestigationAgentPrompts.BuildDomainInput(domain, plan.PlanJson);
 
         _logger.LogInformation("  ├─ Starting AIAgent: {AgentName}", agentName);
 
